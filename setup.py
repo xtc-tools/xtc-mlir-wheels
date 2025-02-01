@@ -11,7 +11,7 @@ class BinaryDistribution(Distribution):
 
 if __name__ == "__main__":
 
-    # Create an empty init.py on the fly
+    # Make it a package
     with open(Path("install") / "__init__.py", "w"):
         pass
 
@@ -22,15 +22,13 @@ if __name__ == "__main__":
         description = "Python packaging for llvm and llvm dev files",
         maintainer="Christophe Guillon",
         maintainer_email="christophe.guillon@inria.fr",
-        requires_python = ">= 3.10",
-        readme = "README.md",
+        python_requires = ">= 3.10",
         packages = ["llvm"],
-        package_dir = { "llvm": "install"},
+        package_dir = {"llvm": "install"},
         include_package_data = True,
         distclass=BinaryDistribution,
         setup_requires = [
             "setuptools>=42",
-            "wheel",
         ],
         zip_safe = False
     )

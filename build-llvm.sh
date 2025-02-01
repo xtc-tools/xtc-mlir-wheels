@@ -11,7 +11,6 @@ cmake \
     -DLLVM_ENABLE_PROJECTS="" \
     -DCMAKE_BUILD_TYPE=Release \
     -DLLVM_PARALLEL_LINK_JOBS=1 \
-    -DLLVM_TARGETS_TO_BUILD="stable" \
     -G Ninja \
     -B build llvm
 
