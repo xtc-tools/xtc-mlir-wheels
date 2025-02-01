@@ -1,0 +1,2 @@
+--extra-index-url https://gitlab.inria.fr/api/v4/projects/57611/packages/pypi/simple
+llvm~=14.0.0
