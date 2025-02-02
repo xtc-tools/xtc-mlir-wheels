@@ -3,6 +3,8 @@ set -euo pipefail
 set -x
 dir="$(realpath -e "$(dirname "$0")")"
 
+cd "$dir"
+
 env \
     CIBW_PLATFORM='linux' \
     CIBW_ARCHS='x86_64' \
@@ -12,7 +14,7 @@ env \
     CIBW_BEFORE_ALL='./install-build-tools.sh && ./build-llvm.sh' \
     CIBW_TEST_COMMAND='{package}/test-installed.sh' \
     cibuildwheel \
-    "$dir"
+    .
 
 #    CIBW_DEBUG_KEEP_CONTAINER=1 \
 #    CIBW_BUILD_VERBOSITY=1 \
