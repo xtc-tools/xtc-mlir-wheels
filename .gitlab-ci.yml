@@ -17,11 +17,16 @@ linux:
   #   # See https://github.com/docker-library/docker/pull/166
   #   DOCKER_TLS_CERTDIR: ""
   ##
+  variables:
+    TWINE_USERNAME: gitlab-ci-token
+    TWINE_PASSWORD: $CI_JOB_TOKEN
+    REPOSITORY_URL: $CI_API_V4_URL/projects/$CI_PROJECT_ID/packages/pypi
   script:
     - curl -sSL https://get.docker.com/ | sh
     - python -m pip install -r requirements.txt
     - ./checkout-llvm.sh
     - ./build-wheels.sh
+    - twine upload --repository-url $REPOSITORY_URL --skip-existing wheelhouse/*.whl
   artifacts:
     paths:
       - wheelhouse/
