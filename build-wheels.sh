@@ -3,6 +3,8 @@ set -euo pipefail
 set -x
 dir="$(realpath -e "$(dirname "$0")")"
 
+BUILD_LLVM_CLEAN_BUILD_DIR="${BUILD_LLVM_CLEAN_BUILD_DIR:-1}"
+
 cd "$dir"
 
 env \
@@ -13,6 +15,8 @@ env \
     CIBW_MANYLINUX_X86_64_IMAGE='manylinux_2_28' \
     CIBW_BEFORE_ALL='./install-build-tools.sh && ./build-llvm.sh' \
     CIBW_TEST_COMMAND='{package}/test-installed.sh' \
+    BUILD_LLVM_CLEAN_BUILD_DIR="$BUILD_LLVM_CLEAN_BUILD_DIR" \
+    CIBW_ENVIRONMENT_PASS_LINUX="BUILD_LLVM_CLEAN_BUILD_DIR" \
     cibuildwheel \
     .
 

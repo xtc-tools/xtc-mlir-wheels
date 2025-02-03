@@ -3,6 +3,8 @@ set -euo pipefail
 set -x
 dir="$(realpath -e "$(dirname "$0")")"
 
+BUILD_LLVM_CLEAN_BUILD_DIR="${BUILD_LLVM_CLEAN_BUILD_DIR:-1}"
+
 cd llvm-project
 
 mkdir build
@@ -11,8 +13,11 @@ cmake \
     -DLLVM_ENABLE_PROJECTS="" \
     -DCMAKE_BUILD_TYPE=Release \
     -DLLVM_PARALLEL_LINK_JOBS=1 \
+    -DCMAKE_PLATFORM_NO_VERSIONED_SONAME=ON \
     -G Ninja \
     -B build llvm
 
 ninja -C build
 ninja -C build install
+
+[ "$BUILD_LLVM_CLEAN_BUILD_DIR" != 1 ] || rm -rf build
