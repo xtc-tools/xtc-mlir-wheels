@@ -21,8 +21,14 @@ linux:
     TWINE_USERNAME: gitlab-ci-token
     TWINE_PASSWORD: $CI_JOB_TOKEN
     REPOSITORY_URL: $CI_API_V4_URL/projects/$CI_PROJECT_ID/packages/pypi
-  script:
+  before_script:
+    - df -h .
+    - free -h
+    - env
+    - python --version
+    - pip list
     - curl -sSL https://get.docker.com/ | sh
+  script:
     - python -m pip install -r requirements.txt
     - ./checkout-llvm.sh
     - ./build-wheels.sh
