@@ -7,10 +7,15 @@ BUILD_LLVM_CLEAN_BUILD_DIR="${BUILD_LLVM_CLEAN_BUILD_DIR:-1}"
 
 cd "$dir"
 
+# Note: we build only cp310-manylinux because the genrated package
+# is not python version/abi dependent, only platform dependent,
+# hence it is not necessary to build one for each python version.
+# The setup.py script enforce the py3-none-manylinux* naming.
+
 env \
     CIBW_PLATFORM='linux' \
     CIBW_ARCHS='x86_64' \
-    CIBW_BUILD='cp3*-manylinux*' \
+    CIBW_BUILD='cp310-manylinux*' \
     CIBW_PROJECT_REQUIRES_PYTHON='>=3.10' \
     CIBW_MANYLINUX_X86_64_IMAGE='manylinux_2_28' \
     CIBW_BEFORE_ALL='./install-build-tools.sh && ./build-llvm.sh' \

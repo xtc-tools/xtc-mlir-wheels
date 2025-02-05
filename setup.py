@@ -1,13 +1,24 @@
 from pathlib import Path
 from setuptools import setup
 from setuptools.dist import Distribution
+from setuptools.command.bdist_wheel import bdist_wheel
+
 
 PACKAGE_VERSION = "14.0.6.2022062201+f28c006a"
+
 
 class BinaryDistribution(Distribution):
     """Distribution which always forces a binary package with platform name"""
     def has_ext_modules(foo):
         return True
+
+
+class CBdistWheel(bdist_wheel):
+    def get_tag(self):
+        python, abi, plat = super().get_tag()
+        # Force python and abi to generic python3
+        return "py3", "none", plat
+
 
 if __name__ == "__main__":
 
@@ -27,6 +38,9 @@ if __name__ == "__main__":
         package_dir = {"llvm": "install"},
         include_package_data = True,
         distclass=BinaryDistribution,
+        cmdclass={
+            "bdist_wheel": CBdistWheel,
+        },
         setup_requires = [
             "setuptools>=42",
         ],
