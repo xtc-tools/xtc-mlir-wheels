@@ -4,7 +4,7 @@ from setuptools.dist import Distribution
 from setuptools.command.bdist_wheel import bdist_wheel
 
 
-PACKAGE_VERSION = "14.0.6.2022062201+f28c006a"
+PACKAGE_VERSION = "19.1.7.2025011201+cd708029"
 
 
 class BinaryDistribution(Distribution):
