@@ -3,6 +3,7 @@ set -euo pipefail
 set -x
 dir="$(realpath -e "$(dirname "$0")")"
 
+BUILD_LLVM_DEBUG_TARGET="${BUILD_LLVM_DEBUG_TARGET:-}"
 BUILD_LLVM_CLEAN_BUILD_DIR="${BUILD_LLVM_CLEAN_BUILD_DIR:-1}"
 LLVM_TARGETS_TO_BUILD="${LLVM_TARGETS_TO_BUILD-AArch64;ARM;X86}"
 
@@ -60,8 +61,12 @@ cmake \
     -G Ninja \
     -B build llvm
 
-ninja -C build
-ninja -C build install
+if [ -z "$BUILD_LLVM_DEBUG_TARGET" ]; then
+    ninja -C build
+    ninja -C build install
+else
+    ninja -C build $BUILD_LLVM_DEBUG_TARGET
+fi
 
 [ "$BUILD_LLVM_CLEAN_BUILD_DIR" != 1 ] || rm -rf build
 
