@@ -30,25 +30,9 @@ cmake \
     -DLLVM_BUILD_LLVM_DYLIB=ON \
     -DLLVM_LINK_LLVM_DYLIB=ON \
     -DLLVM_INCLUDE_TOOLS=ON \
-    -DLLVM_BUILD_TOOLS=OFF \
+    -DLLVM_BUILD_TOOLS=ON \
     -DLLVM_INCLUDE_UTILS=OFF \
     -DLLVM_BUILD_UTILS=OFF \
-    -DLLVM_TOOL_LLVM_DRIVER_BUILD=OFF \
-    -DLLVM_TOOL_LTO_BUILD=OFF \
-    -DLLVM_TOOL_GOLD_BUILD=OFF \
-    -DLLVM_TOOL_LLVM_AR_BUILD=OFF \
-    -DLLVM_TOOL_LLVM_AR_BUILD=OFF \
-    -DLLVM_TOOL_LLVM_LTO_BUILD=OFF \
-    -DLLVM_TOOL_LLVM_PROFDATA_BUILD=OFF \
-    -DLLVM_TOOL_LLD_BUILD=OFF \
-    -DLLVM_TOOL_CLANG_BUILD=OFF \
-    -DLLVM_TOOL_FLANG_BUILD=OFF \
-    -DLLVM_TOOL_LLDB_BUILD=OFF \
-    -DLLVM_TOOL_BOLT_BUILD=OFF \
-    -DLLVM_TOOL_POLLY_BUILD=OFF \
-    -DLLVM_TOOL_LIBCLC_BUILD=OFF \
-    -DLLVM_TOOL_LLVM_CONFIG_BUILD=ON \
-    -DLLVM_TOOL_MLIR_BUILD=ON \
     -DMLIR_INCLUDE_INTEGRATION_TESTS=OFF \
     -DMLIR_INCLUDE_TESTS=OFF \
     -DMLIR_BUILD_MLIR_C_DYLIB=ON \
@@ -64,6 +48,12 @@ cmake \
 if [ -z "$BUILD_LLVM_DEBUG_TARGET" ]; then
     ninja -C build
     ninja -C build install
+    # remove useless so links
+    find "$dir"/install/lib/ -type l -name '*.so' | xargs rm -f
+    # Move python bindings
+    mv "$dir"/install/python_packages/mlir_core/mlir "$dir"/python_bindings
+    rm -rf "$dir"/install/python_packages
+    cp -a "$dir"/install/lib/libLLVM.so "$dir"/python_bindings/mlir/_mlir_libs/
 else
     ninja -C build $BUILD_LLVM_DEBUG_TARGET
 fi
@@ -73,3 +63,20 @@ fi
 #    -DCMAKE_VISIBILITY_INLINES_HIDDEN=ON \
 #    -DCMAKE_C_VISIBILITY_PRESET=hidden \
 #    -DCMAKE_CXX_VISIBILITY_PRESET=hidden \
+
+    # -DLLVM_TOOL_LLVM_DRIVER_BUILD=OFF \
+    # -DLLVM_TOOL_LTO_BUILD=OFF \
+    # -DLLVM_TOOL_GOLD_BUILD=OFF \
+    # -DLLVM_TOOL_LLVM_AR_BUILD=OFF \
+    # -DLLVM_TOOL_LLVM_AR_BUILD=OFF \
+    # -DLLVM_TOOL_LLVM_LTO_BUILD=OFF \
+    # -DLLVM_TOOL_LLVM_PROFDATA_BUILD=OFF \
+    # -DLLVM_TOOL_LLD_BUILD=OFF \
+    # -DLLVM_TOOL_CLANG_BUILD=OFF \
+    # -DLLVM_TOOL_FLANG_BUILD=OFF \
+    # -DLLVM_TOOL_LLDB_BUILD=OFF \
+    # -DLLVM_TOOL_BOLT_BUILD=OFF \
+    # -DLLVM_TOOL_POLLY_BUILD=OFF \
+    # -DLLVM_TOOL_LIBCLC_BUILD=OFF \
+    # -DLLVM_TOOL_LLVM_CONFIG_BUILD=ON \
+    # -DLLVM_TOOL_MLIR_BUILD=ON \

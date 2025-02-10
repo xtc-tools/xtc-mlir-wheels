@@ -4,7 +4,7 @@ from setuptools.dist import Distribution
 from setuptools.command.bdist_wheel import bdist_wheel
 
 
-PACKAGE_NAME = "mlir"
+PACKAGE_NAME = "mlir-python-bindings"
 PACKAGE_VERSION = "19.1.7.2025011201+cd708029"
 
 
@@ -15,10 +15,7 @@ class BinaryDistribution(Distribution):
 
 
 class CBdistWheel(bdist_wheel):
-    def get_tag(self):
-        python, abi, plat = super().get_tag()
-        # Force python and abi to generic python3
-        return "py3", "none", plat
+    pass
 
 
 if __name__ == "__main__":
@@ -31,8 +28,8 @@ if __name__ == "__main__":
         maintainer="Christophe Guillon",
         maintainer_email="christophe.guillon@inria.fr",
         python_requires = ">= 3.10",
-        packages = [PACKAGE_NAME],
-        package_dir = {PACKAGE_NAME: "install"},
+#        packages = ["mlir"],
+#        package_dir = {"": ""},
         include_package_data = True,
         distclass=BinaryDistribution,
         cmdclass={

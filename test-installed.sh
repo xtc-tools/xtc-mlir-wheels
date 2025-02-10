@@ -2,7 +2,7 @@
 set -euo pipefail
 set -x
 
-PREFIX="$(python -c 'import llvm;print(llvm.__path__[0])')"
+PREFIX="$(python -c 'import mlir;print(mlir.__path__[0])')"
 "$PREFIX"/bin/llvm-config --version
 "$PREFIX"/bin/llvm-config --ldflags
 
