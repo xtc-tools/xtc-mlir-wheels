@@ -11,6 +11,7 @@ cd llvm-project
 
 pip3 install -r mlir/python/requirements.txt
 
+rm -rf "$dir"/install "$dir"/python_bindings/mlir
 mkdir -p build
 cmake \
     -DCMAKE_INSTALL_PREFIX="$dir"/install \
