@@ -3,24 +3,49 @@ set -euo pipefail
 set -x
 dir="$(realpath -e "$(dirname "$0")")"
 
+# dump env
+env
+
+BUILD_DIR="${1-llvm-project/build}"
+INSTALL_DIR="${2-$dir/install}"
+INSTALL_BINDINGS_DIR="${3-$dir/install-bindings}"
+
 BUILD_LLVM_DEBUG_TARGET="${BUILD_LLVM_DEBUG_TARGET:-}"
 BUILD_LLVM_CLEAN_BUILD_DIR="${BUILD_LLVM_CLEAN_BUILD_DIR:-1}"
 BUILD_LLVM_CCACHE="${BUILD_LLVM_CCACHE:-0}"
+BUILD_LLVM_MLIR_BINDINGS="${BUILD_LLVM_MLIR_BINDINGS:-0}"
+BUILD_LLVM_TOOLS="${BUILD_LLVM_TOOLS:-1}"
 LLVM_TARGETS_TO_BUILD="${LLVM_TARGETS_TO_BUILD-AArch64;ARM;X86}"
 
 CCACHE_OPTS=""
 [ "$BUILD_LLVM_CCACHE" != 1 ] || \
     CCACHE_OPTS="-DLLVM_CCACHE_BUILD=ON -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache"
 
-cd llvm-project
+MLIR_TOOLS="-DLLVM_INCLUDE_TOOLS=ON -DLLVM_BUILD_TOOLS=OFF"
+[ "$BUILD_LLVM_TOOLS" != 1 ] || \
+    MLIR_TOOLS="-DLLVM_INCLUDE_TOOLS=ON -DLLVM_BUILD_TOOLS=ON"
 
-pip3 install -r mlir/python/requirements.txt
+MLIR_BINDINGS="-DLLVM_INCLUDE_TOOLS=ON -DMLIR_ENABLE_BINDINGS_PYTHON=OFF"
+[ "$BUILD_LLVM_MLIR_BINDINGS" != 1 ] || \
+    MLIR_BINDINGS="-DLLVM_INCLUDE_TOOLS=ON -DMLIR_ENABLE_BINDINGS_PYTHON=ON"
 
-rm -rf "$dir"/install "$dir"/python_bindings/mlir
-mkdir -p build
+# Detect if we're in cibuildwheel, in which case we create the /output dir
+# to store additional files
+[ `pwd` != /project ] || mkdir -p /output
+
+rm -rf "$INSTALL_DIR" "$INSTALL_BINDINGS_DIR"
+mkdir -p "$INSTALL_DIR"
+mkdir -p "$INSTALL_BINDINGS_DIR"
+mkdir -p "$BUILD_DIR"
+
+cd "$BUILD_DIR"
+pip3 install -r "$dir"/llvm-project/mlir/python/requirements.txt
+
+#rm -rf "$dir"/install "$dir"/python_bindings/mlir
 cmake \
-    -DCMAKE_INSTALL_PREFIX="$dir"/install \
+    -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" \
     -DLLVM_ENABLE_PROJECTS="mlir" \
+    -DLLVM_INSTALL_TOOLCHAIN_ONLY=ON \
     -DCMAKE_BUILD_TYPE=Release \
     -DLLVM_PARALLEL_LINK_JOBS=1 \
     -DCMAKE_PLATFORM_NO_VERSIONED_SONAME=ON \
@@ -35,34 +60,36 @@ cmake \
     -DLLVM_BUILD_DOCS=OFF \
     -DLLVM_BUILD_LLVM_DYLIB=ON \
     -DLLVM_LINK_LLVM_DYLIB=ON \
-    -DLLVM_INCLUDE_TOOLS=ON \
-    -DLLVM_BUILD_TOOLS=ON \
     -DLLVM_INCLUDE_UTILS=OFF \
     -DLLVM_BUILD_UTILS=OFF \
     -DMLIR_INCLUDE_INTEGRATION_TESTS=OFF \
     -DMLIR_INCLUDE_TESTS=OFF \
     -DMLIR_BUILD_MLIR_C_DYLIB=ON \
-    -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
     -DMLIR_ENABLE_EXECUTION_ENGINE=ON \
     -DMLIR_ENABLE_SPIRV_CPU_RUNNER=ON \
+    $MLIR_TOOLS \
+    $MLIR_BINDINGS \
     $CCACHE_OPTS \
     -G Ninja \
-    -B build llvm
+    "$dir"/llvm-project/llvm
 
 if [ -z "$BUILD_LLVM_DEBUG_TARGET" ]; then
-    ninja -C build
-    ninja -C build install
+    ninja
+    ninja install
     # remove useless so links
-    find "$dir"/install/lib/ -type l -name '*.so' | xargs rm -f
-    # Move python bindings
-    mv "$dir"/install/python_packages/mlir_core/mlir "$dir"/python_bindings
-    rm -rf "$dir"/install/python_packages
-    cp -a "$dir"/install/lib/libLLVM.so "$dir"/python_bindings/mlir/_mlir_libs/
+    find "$INSTALL_DIR"/lib/ -type l -name '*.so' | xargs rm -f
+    if [ -d "$INSTALL_DIR"/python_packages ]; then
+        # Move python bindings
+        mv "$INSTALL_DIR"/python_packages/mlir_core/mlir "$INSTALL_BINDINGS_DIR"/
+        rm -rf "$INSTALL_DIR"/python_packages
+        cp -a "$INSTALL_DIR"/lib/libLLVM.so "$INSTALL_BINDINGS_DIR"/mlir/_mlir_libs/
+    fi
 else
-    ninja -C build $BUILD_LLVM_DEBUG_TARGET
+    ninja $BUILD_LLVM_DEBUG_TARGET
 fi
 
-[ "$BUILD_LLVM_CLEAN_BUILD_DIR" != 1 ] || rm -rf build
+cd "$dir"
+[ "$BUILD_LLVM_CLEAN_BUILD_DIR" != 1 ] || rm -rf "$BUILD_DIR"
 
 #    -DCMAKE_VISIBILITY_INLINES_HIDDEN=ON \
 #    -DCMAKE_C_VISIBILITY_PRESET=hidden \

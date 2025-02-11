@@ -63,6 +63,7 @@ Then run the cibuildwheel which will create the wheels to install in `wheelhouse
 
      ./checkout-llvm.sh
      ./build-wheels.sh
+     ./build-wheels-bindings.sh
 
 Once built, one may publish to the project repository with:
 
