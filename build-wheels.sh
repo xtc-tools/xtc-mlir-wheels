@@ -21,7 +21,7 @@ env \
     CIBW_BUILD='cp310-manylinux*' \
     CIBW_PROJECT_REQUIRES_PYTHON='>=3.10' \
     CIBW_MANYLINUX_X86_64_IMAGE='manylinux_2_28' \
-    CIBW_BEFORE_ALL='./install-build-tools.sh && ./update-ccache-from-host.sh && env BUILD_LLVM_MLIR_BINDINGS=0 BUILD_LLVM_TOOLS=1 BUILD_LLVM_CCACHE=1 ./build-mlir-bindings.sh' \
+    CIBW_BEFORE_ALL='./install-build-tools.sh && ./update-ccache-from-host.sh && env BUILD_LLVM_MLIR_BINDINGS=0 BUILD_LLVM_TOOLS=1 BUILD_LLVM_COMPONENTS=bins BUILD_LLVM_CCACHE=0 ./build-mlir-bindings.sh' \
     CIBW_BEFORE_BUILD='rm -rf dist build *egg-info' \
     CIBW_TEST_COMMAND='{package}/test-installed.sh' \
     BUILD_LLVM_DEBUG_TARGET="$BUILD_LLVM_DEBUG_TARGET" \

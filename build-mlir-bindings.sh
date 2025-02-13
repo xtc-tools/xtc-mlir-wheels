@@ -16,6 +16,7 @@ BUILD_LLVM_CCACHE="${BUILD_LLVM_CCACHE:-0}"
 BUILD_LLVM_MLIR_BINDINGS="${BUILD_LLVM_MLIR_BINDINGS:-0}"
 BUILD_LLVM_TOOLS="${BUILD_LLVM_TOOLS:-1}"
 LLVM_TARGETS_TO_BUILD="${LLVM_TARGETS_TO_BUILD-AArch64;ARM;X86}"
+BUILD_LLVM_COMPONENTS="${BUILD_LLVM_COMPONENTS-}"
 
 LLVM_BUILD_TYPE="Release" # "MinSizeRel"
 
@@ -24,7 +25,7 @@ CCACHE_OPTS=""
     CCACHE_OPTS="-DLLVM_CCACHE_BUILD=ON -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache"
 
 if [ "$BUILD_LLVM_TOOLS" = 1 ]; then
-    MLIR_TOOLS="-DLLVM_INCLUDE_TOOLS=ON -DLLVM_BUILD_TOOLS=ON  -DLLVM_INSTALL_TOOLCHAIN_ONLY=OFF"
+    MLIR_TOOLS="-DLLVM_INCLUDE_TOOLS=ON -DLLVM_BUILD_TOOLS=ON -DLLVM_INSTALL_TOOLCHAIN_ONLY=OFF"
 else
     MLIR_TOOLS="-DLLVM_INCLUDE_TOOLS=ON -DLLVM_BUILD_TOOLS=OFF -DLLVM_INSTALL_TOOLCHAIN_ONLY=ON"
 fi
@@ -35,6 +36,16 @@ else
     MLIR_BINDINGS="-DLLVM_INCLUDE_TOOLS=ON -DMLIR_ENABLE_BINDINGS_PYTHON=OFF"
 fi
 
+COMPONENTS=""
+if [ "$BUILD_LLVM_COMPONENTS" != "" ]; then
+    COMPONENTS_FILE="$dir/components_$BUILD_LLVM_COMPONENTS.txt"
+    if [ -f "$COMPONENTS_FILE" ]; then
+        LLVM_DISTRIBUTION_COMPONENTS="$(cat "$COMPONENTS_FILE" | tr '\n' ';')"
+    else
+        LLVM_DISTRIBUTION_COMPONENTS="$BUILD_LLVM_COMPONENTS"
+    fi
+    COMPONENTS="-DLLVM_DISTRIBUTION_COMPONENTS=$LLVM_DISTRIBUTION_COMPONENTS"
+fi
 
 [ "$BUILD_LLVM_CLEAN_BUILD_DIR" != 1 ] || rm -rf "$BUILD_DIR"
 rm -rf "$INSTALL_DIR" "$INSTALL_BINDINGS_DIR"
@@ -70,11 +81,13 @@ cmake \
     -DLLVM_BUILD_UTILS=OFF \
     -DMLIR_INCLUDE_INTEGRATION_TESTS=OFF \
     -DMLIR_INCLUDE_TESTS=OFF \
+    -DMLIR_LINK_MLIR_DYLIB=ON \
     -DMLIR_BUILD_MLIR_C_DYLIB=ON \
     -DMLIR_ENABLE_EXECUTION_ENGINE=ON \
     -DMLIR_ENABLE_SPIRV_CPU_RUNNER=ON \
     $MLIR_TOOLS \
     $MLIR_BINDINGS \
+    $COMPONENTS \
     $CCACHE_OPTS \
     -Wno-dev \
     -Wno-deprecated \
@@ -82,10 +95,17 @@ cmake \
     "$dir"/llvm-project/llvm
 
 if [ -z "$BUILD_LLVM_DEBUG_TARGET" ]; then
-    ninja
-    ninja install
-    # remove useless so links
-    find "$INSTALL_DIR"/lib/ -type l -name '*.so' | xargs rm -f
+    if [ "$BUILD_LLVM_COMPONENTS" != "" ]; then
+        ninja distribution
+        ninja install-distribution
+    else
+        ninja
+        ninja install
+    fi
+    if [ -d "$INSTALL_DIR"/lib ]; then
+        # remove useless so links
+        find "$INSTALL_DIR"/lib/ -type l -name '*.so' | xargs rm -f
+    fi
     if [ -d "$INSTALL_DIR"/python_packages ]; then
         # Move python bindings
         mv "$INSTALL_DIR"/python_packages/mlir_core/mlir "$INSTALL_BINDINGS_DIR"/

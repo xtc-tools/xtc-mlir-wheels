@@ -1,0 +1,11 @@
+llvm-config
+llvm-headers
+llvm-libraries
+opt
+llc
+mlir-headers
+mlir-libraries
+mlir-query
+mlir-opt
+mlir-cpu-runner
+mlir-translate

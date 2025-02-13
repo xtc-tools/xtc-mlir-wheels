@@ -1,0 +1,8 @@
+llvm-config
+LLVM
+opt
+llc
+MLIR
+mlir-opt
+mlir-cpu-runner
+mlir-translate
