@@ -6,3 +6,5 @@ MLIR
 mlir-opt
 mlir-cpu-runner
 mlir-translate
+mlir_runner_utils
+mlir_c_runner_utils
