@@ -5,7 +5,7 @@ linux:
     - ci.inria.fr
     - large
   rules:
-    - if: $CI_COMMIT_TAG
+    - if: $CI_COMMIT_TAG =~ /^mlir-/
   ## This section is not necessary on INRIA runner
   ## which include a docker daemon
   # # make a docker daemon available for cibuildwheel to use
@@ -46,7 +46,7 @@ linux-bindings:
     - ci.inria.fr
     - large
   rules:
-    - if: $CI_COMMIT_TAG
+    - if: $CI_COMMIT_TAG =~ /^mlir-python-bindings-/
   ## This section is not necessary on INRIA runner
   ## which include a docker daemon
   # # make a docker daemon available for cibuildwheel to use
