@@ -98,6 +98,9 @@ if [ -z "$BUILD_LLVM_DEBUG_TARGET" ]; then
     if [ "$BUILD_LLVM_COMPONENTS" != "" ]; then
         ninja distribution
         ninja install-distribution
+        case "$BUILD_LLVM_COMPONENTS" in
+            bins) rm -rf "$INSTALL_DIR"/include "$INSTALL_DIR"/lib/*.a "$INSTALL_DIR"/lib/objects-* ;;
+        esac
     else
         ninja
         ninja install
