@@ -1,11 +1,9 @@
-linux:
+default:
   image: python:3.12
   # Allocate large shared (4xCPU 8GB)
   tags:
     - ci.inria.fr
     - large
-  rules:
-    - if: $CI_COMMIT_TAG =~ /^mlir-/
   ## This section is not necessary on INRIA runner
   ## which include a docker daemon
   # # make a docker daemon available for cibuildwheel to use
@@ -30,6 +28,11 @@ linux:
     - python --version
     - pip list
     - curl -sSL https://get.docker.com/ | sh
+
+linux:
+  stage: build
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^mlir-v/
   script:
     - python -m pip install -r requirements.txt
     - ./checkout-llvm.sh
@@ -40,37 +43,9 @@ linux:
       - wheelhouse/
 
 linux-bindings:
-  image: python:3.12
-  # Allocate large shared (4xCPU 8GB)
-  tags:
-    - ci.inria.fr
-    - large
+  stage: build
   rules:
-    - if: $CI_COMMIT_TAG =~ /^mlir-python-bindings-/
-  ## This section is not necessary on INRIA runner
-  ## which include a docker daemon
-  # # make a docker daemon available for cibuildwheel to use
-  # services:
-  #   - name: docker:dind
-  #     entrypoint: ["env", "-u", "DOCKER_HOST"]
-  #     command: ["dockerd-entrypoint.sh"]
-  # variables:
-  #   DOCKER_HOST: tcp://docker:2375/
-  #   DOCKER_DRIVER: overlay2
-  #   # See https://github.com/docker-library/docker/pull/166
-  #   DOCKER_TLS_CERTDIR: ""
-  ##
-  variables:
-    TWINE_USERNAME: gitlab-ci-token
-    TWINE_PASSWORD: $CI_JOB_TOKEN
-    REPOSITORY_URL: $CI_API_V4_URL/projects/$CI_PROJECT_ID/packages/pypi
-  before_script:
-    - df -h .
-    - free -h
-    - env
-    - python --version
-    - pip list
-    - curl -sSL https://get.docker.com/ | sh
+    - if: $CI_COMMIT_TAG =~ /^mlir-python-bindings-v/
   script:
     - python -m pip install -r requirements.txt
     - ./checkout-llvm.sh
