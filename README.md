@@ -4,7 +4,7 @@ This is a simple project wrapper for build MLIR tools and python bindings as a p
 
 The actual gitlab wheels can then be viewd from: https://gitlab.inria.fr/groups/CORSE/-/packages
 
-## Installing the LLVM wheels for some project
+## Installing the MLIR wheels for some project
 
 The minimal required python version is: `python >= 3.10`
 
@@ -30,7 +30,7 @@ And run:
     ...
     Successfully installed mlir-19.1.7.2025011201+cd708029
 
-## Using mlir installed tools
+## Using MLIR installed tools
 
 To get the path to mlir tools, for instance run `llvm-config`:
 
