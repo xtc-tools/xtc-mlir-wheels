@@ -24,4 +24,4 @@ env \
     cibuildwheel \
     python_bindings
 
-#    CIBW_BUILD_VERBOSITY=1 \
+#    CIBW_DEBUG_KEEP_CONTAINER=1 \
