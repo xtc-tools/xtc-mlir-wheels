@@ -1,0 +1,269 @@
+From 90131ee864a842938968263e998cd4fc0c329013 Mon Sep 17 00:00:00 2001
+From: Jevgenijs Protopopovs <jevgenijs.protopopovs@inria.fr>
+Date: Mon, 6 May 2024 10:25:20 +0200
+Subject: [PATCH 3/5] Implement processing of JIR unroll annotations
+
+---
+ mlir/include/mlir/Dialect/Affine/Passes.h     |  2 +-
+ mlir/include/mlir/Dialect/Affine/Passes.td    |  6 +-
+ mlir/include/mlir/Dialect/Affine/Utils.h      |  3 +-
+ .../Dialect/Affine/Transforms/CMakeLists.txt  |  2 +-
+ .../Affine/Transforms/JirAffineTransform.cpp  | 83 +++++++++++++++++++
+ .../Affine/Transforms/JirAffineVectorize.cpp  | 58 -------------
+ .../Affine/Transforms/SuperVectorize.cpp      | 12 ++-
+ 7 files changed, 99 insertions(+), 67 deletions(-)
+ create mode 100644 mlir/lib/Dialect/Affine/Transforms/JirAffineTransform.cpp
+ delete mode 100644 mlir/lib/Dialect/Affine/Transforms/JirAffineVectorize.cpp
+
+diff --git a/mlir/include/mlir/Dialect/Affine/Passes.h b/mlir/include/mlir/Dialect/Affine/Passes.h
+index e4bb73315..4a4d4ac4b 100644
+--- a/mlir/include/mlir/Dialect/Affine/Passes.h
++++ b/mlir/include/mlir/Dialect/Affine/Passes.h
+@@ -116,7 +116,7 @@ std::unique_ptr<OperationPass<func::FuncOp>> createPipelineDataTransferPass();
+ /// operations (not necessarily restricted to Affine dialect).
+ std::unique_ptr<Pass> createAffineExpandIndexOpsPass();
+ 
+-std::unique_ptr<OperationPass<func::FuncOp>> createJirAffineVectorizePass();
++std::unique_ptr<OperationPass<func::FuncOp>> createJirAffineTransformPass();
+ std::unique_ptr<OperationPass<func::FuncOp>> createJirTerminalSubviewEliminatePass();
+ 
+ //===----------------------------------------------------------------------===//
+diff --git a/mlir/include/mlir/Dialect/Affine/Passes.td b/mlir/include/mlir/Dialect/Affine/Passes.td
+index 25f87f1d2..abf25f0f9 100644
+--- a/mlir/include/mlir/Dialect/Affine/Passes.td
++++ b/mlir/include/mlir/Dialect/Affine/Passes.td
+@@ -408,9 +408,9 @@ def AffineExpandIndexOps : Pass<"affine-expand-index-ops"> {
+   let constructor = "mlir::affine::createAffineExpandIndexOpsPass()";
+ }
+ 
+-def JirAffineVectorize : Pass<"jir-affine-vectorize", "func::FuncOp"> {
+-  let summary = "Vectorize affine loops based on jir.transform.vectorize annotations";
+-  let constructor = "mlir::affine::createJirAffineVectorizePass()";
++def JirAffineTransform : Pass<"jir-affine-transform", "func::FuncOp"> {
++  let summary = "Transform affine loops based on jir.transform.* annotations";
++  let constructor = "mlir::affine::createJirAffineTransformPass()";
+   let dependentDialects = ["vector::VectorDialect"];
+   let options = [];
+ }
+diff --git a/mlir/include/mlir/Dialect/Affine/Utils.h b/mlir/include/mlir/Dialect/Affine/Utils.h
+index 67c7a964f..50fb9d98a 100644
+--- a/mlir/include/mlir/Dialect/Affine/Utils.h
++++ b/mlir/include/mlir/Dialect/Affine/Utils.h
+@@ -158,7 +158,8 @@ void vectorizeAffineLoops(
+ /// loops = {{%i1}}, to vectorize only the middle loop.
+ LogicalResult
+ vectorizeAffineLoopNest(std::vector<SmallVector<AffineForOp, 2>> &loops,
+-                        const VectorizationStrategy &strategy);
++                        const VectorizationStrategy &strategy,
++                        Operation **replacementRootLoop = nullptr);
+ 
+ /// Normalize a affine.parallel op so that lower bounds are 0 and steps are 1.
+ /// As currently implemented, this transformation cannot fail and will return
+diff --git a/mlir/lib/Dialect/Affine/Transforms/CMakeLists.txt b/mlir/lib/Dialect/Affine/Transforms/CMakeLists.txt
+index d2ba50ac5..a9aef7575 100644
+--- a/mlir/lib/Dialect/Affine/Transforms/CMakeLists.txt
++++ b/mlir/lib/Dialect/Affine/Transforms/CMakeLists.txt
+@@ -15,7 +15,7 @@ add_mlir_dialect_library(MLIRAffineTransforms
+   ReifyValueBounds.cpp
+   SuperVectorize.cpp
+   SimplifyAffineStructures.cpp
+-  JirAffineVectorize.cpp
++  JirAffineTransform.cpp
+   JirTerminalSubviewEliminate.cpp
+ 
+   ADDITIONAL_HEADER_DIRS
+diff --git a/mlir/lib/Dialect/Affine/Transforms/JirAffineTransform.cpp b/mlir/lib/Dialect/Affine/Transforms/JirAffineTransform.cpp
+new file mode 100644
+index 000000000..df33a60fa
+--- /dev/null
++++ b/mlir/lib/Dialect/Affine/Transforms/JirAffineTransform.cpp
+@@ -0,0 +1,83 @@
++#include "mlir/Dialect/Affine/Passes.h"
++
++#include "mlir/Dialect/Affine/IR/AffineOps.h"
++#include "mlir/Dialect/Affine/Transforms/Transforms.h"
++#include "mlir/Dialect/Affine/Utils.h"
++#include "mlir/Dialect/Affine/LoopUtils.h"
++#include "mlir/Dialect/Func/IR/FuncOps.h"
++#include "mlir/Dialect/Vector/IR/VectorOps.h"
++#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
++
++namespace mlir {
++namespace affine {
++#define GEN_PASS_DEF_JIRAFFINETRANSFORM
++#include "mlir/Dialect/Affine/Passes.h.inc"
++} // namespace affine
++} // namespace mlir
++
++using namespace mlir;
++using namespace mlir::affine;
++
++namespace {
++
++class JirAffineTransformPass
++    : public affine::impl::JirAffineTransformBase<JirAffineTransformPass> {
++public:
++  JirAffineTransformPass() = default;
++
++  void runOnOperation() override {
++    auto func = getOperation();
++
++    SmallVector<std::tuple<int64_t, int64_t, AffineForOp>> worklist;
++    func.walk([&](Operation *op) {
++      auto forOp = dyn_cast<AffineForOp>(op);
++      if (forOp) {
++        int64_t vectorize = -1;
++        int64_t unroll = -1;
++        if (op->hasAttrOfType<IntegerAttr>("jir.transform.vectorize")) {
++          vectorize = op->getAttrOfType<IntegerAttr>("jir.transform.vectorize").getInt();
++        }
++
++        if (op->hasAttrOfType<IntegerAttr>("jir.transform.unroll")) {
++          unroll = op->getAttrOfType<IntegerAttr>("jir.transform.unroll").getInt();
++        }
++       
++        if (vectorize > 0 || unroll >= 0) {
++          worklist.emplace_back(vectorize, unroll, forOp);
++        }
++      }
++    });
++
++    for (auto [vectorSize, unroll, forOp] : worklist) {
++      if (vectorSize > 0) {
++        VectorizationStrategy strategy;
++        strategy.vectorSizes.push_back(vectorSize);
++        strategy.loopToVectorDim[forOp] = 0;
++
++        std::vector<SmallVector<AffineForOp, 2>> loopsToVectorize;
++        loopsToVectorize.push_back({forOp});
++        Operation *replacementRoot = nullptr;
++        if (!succeeded(vectorizeAffineLoopNest(loopsToVectorize, strategy, &replacementRoot))) {
++          return signalPassFailure();
++        }
++        forOp = dyn_cast<AffineForOp>(replacementRoot);
++        if (!forOp) {
++          continue;
++        }
++      }
++
++      if (unroll > 0 && !succeeded(loopUnrollByFactor(forOp, static_cast<uint64_t>(unroll)))) {
++        return signalPassFailure();
++      } else if (unroll == 0 && !succeeded(loopUnrollFull(forOp))) {
++        return signalPassFailure();
++      }
++    }
++  }
++};
++
++} // namespace
++
++std::unique_ptr<OperationPass<func::FuncOp>>
++mlir::affine::createJirAffineTransformPass() {
++  return std::make_unique<JirAffineTransformPass>();
++}
+diff --git a/mlir/lib/Dialect/Affine/Transforms/JirAffineVectorize.cpp b/mlir/lib/Dialect/Affine/Transforms/JirAffineVectorize.cpp
+deleted file mode 100644
+index c018546a0..000000000
+--- a/mlir/lib/Dialect/Affine/Transforms/JirAffineVectorize.cpp
++++ /dev/null
+@@ -1,58 +0,0 @@
+-#include "mlir/Dialect/Affine/Passes.h"
+-
+-#include "mlir/Dialect/Affine/IR/AffineOps.h"
+-#include "mlir/Dialect/Affine/Transforms/Transforms.h"
+-#include "mlir/Dialect/Affine/Utils.h"
+-#include "mlir/Dialect/Func/IR/FuncOps.h"
+-#include "mlir/Dialect/Vector/IR/VectorOps.h"
+-#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+-
+-namespace mlir {
+-namespace affine {
+-#define GEN_PASS_DEF_JIRAFFINEVECTORIZE
+-#include "mlir/Dialect/Affine/Passes.h.inc"
+-} // namespace affine
+-} // namespace mlir
+-
+-using namespace mlir;
+-using namespace mlir::affine;
+-
+-namespace {
+-
+-class JirAffineVectorizePass
+-    : public affine::impl::JirAffineVectorizeBase<JirAffineVectorizePass> {
+-public:
+-  JirAffineVectorizePass() = default;
+-
+-  void runOnOperation() override {
+-    auto func = getOperation();
+-
+-    SmallVector<std::pair<int64_t, AffineForOp>> worklist;
+-    func.walk([&](Operation *op) {
+-      auto forOp = dyn_cast<AffineForOp>(op);
+-      if (forOp && op->hasAttrOfType<IntegerAttr>("jir.transform.vectorize")) {
+-        auto attr = op->getAttrOfType<IntegerAttr>("jir.transform.vectorize");
+-        worklist.emplace_back(attr.getInt(), forOp);
+-      }
+-    });
+-
+-    for (auto [vectorSize, forOp] : worklist) {
+-      VectorizationStrategy strategy;
+-      strategy.vectorSizes.push_back(vectorSize);
+-      strategy.loopToVectorDim[forOp] = 0;
+-
+-      std::vector<SmallVector<AffineForOp, 2>> loopsToVectorize;
+-      loopsToVectorize.push_back({forOp});
+-      if (!succeeded(vectorizeAffineLoopNest(loopsToVectorize, strategy))) {
+-        return signalPassFailure();
+-      }
+-    }
+-  }
+-};
+-
+-} // namespace
+-
+-std::unique_ptr<OperationPass<func::FuncOp>>
+-mlir::affine::createJirAffineVectorizePass() {
+-  return std::make_unique<JirAffineVectorizePass>();
+-}
+diff --git a/mlir/lib/Dialect/Affine/Transforms/SuperVectorize.cpp b/mlir/lib/Dialect/Affine/Transforms/SuperVectorize.cpp
+index 71e9648a5..9494aaf76 100644
+--- a/mlir/lib/Dialect/Affine/Transforms/SuperVectorize.cpp
++++ b/mlir/lib/Dialect/Affine/Transforms/SuperVectorize.cpp
+@@ -1560,7 +1560,8 @@ getMatchedAffineLoops(NestedMatch match,
+ /// using an n-D vectorization strategy.
+ static LogicalResult
+ vectorizeLoopNest(std::vector<SmallVector<AffineForOp, 2>> &loops,
+-                  const VectorizationStrategy &strategy) {
++                  const VectorizationStrategy &strategy,
++                  Operation **replacementRootLoop = nullptr) {
+   assert(loops[0].size() == 1 && "Expected single root loop");
+   AffineForOp rootLoop = loops[0][0];
+   VectorizationState state(rootLoop.getContext());
+@@ -1616,6 +1617,10 @@ vectorizeLoopNest(std::vector<SmallVector<AffineForOp, 2>> &loops,
+   for (auto resPair : state.loopResultScalarReplacement)
+     resPair.first.replaceAllUsesWith(resPair.second);
+ 
++  if (replacementRootLoop != nullptr) {
++    *replacementRootLoop = state.opVectorReplacement[rootLoop];
++  }
++
+   assert(state.opVectorReplacement.count(rootLoop) == 1 &&
+          "Expected vector replacement for loop nest");
+   LLVM_DEBUG(dbgs() << "\n[early-vect]+++++ success vectorizing pattern");
+@@ -1884,10 +1889,11 @@ void mlir::affine::vectorizeAffineLoops(
+ /// loops = {{%i1}}, to vectorize only the middle loop.
+ LogicalResult mlir::affine::vectorizeAffineLoopNest(
+     std::vector<SmallVector<AffineForOp, 2>> &loops,
+-    const VectorizationStrategy &strategy) {
++    const VectorizationStrategy &strategy,
++    Operation **replacementRootLoop) {
+   // Thread-safe RAII local context, BumpPtrAllocator freed on exit.
+   NestedPatternContext mlContext;
+   if (failed(verifyLoopNesting(loops)))
+     return failure();
+-  return vectorizeLoopNest(loops, strategy);
++  return vectorizeLoopNest(loops, strategy, replacementRootLoop);
+ }
+-- 
+2.34.1
+

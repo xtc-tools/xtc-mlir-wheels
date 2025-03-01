@@ -1,0 +1,218 @@
+From 93ef52958f8ae3b31c4bab8533361efe320a87de Mon Sep 17 00:00:00 2001
+From: Jevgenijs Protopopovs <jevgenijs.protopopovs@inria.fr>
+Date: Mon, 6 May 2024 09:26:42 +0200
+Subject: [PATCH 2/5] Implement passes to process JIR vectorization annotations
+
+---
+ mlir/include/mlir/Dialect/Affine/Passes.h     |  3 +
+ mlir/include/mlir/Dialect/Affine/Passes.td    | 14 ++++
+ .../Dialect/Affine/Transforms/CMakeLists.txt  |  2 +
+ .../Affine/Transforms/JirAffineVectorize.cpp  | 58 ++++++++++++++
+ .../JirTerminalSubviewEliminate.cpp           | 80 +++++++++++++++++++
+ 5 files changed, 157 insertions(+)
+ create mode 100644 mlir/lib/Dialect/Affine/Transforms/JirAffineVectorize.cpp
+ create mode 100644 mlir/lib/Dialect/Affine/Transforms/JirTerminalSubviewEliminate.cpp
+
+diff --git a/mlir/include/mlir/Dialect/Affine/Passes.h b/mlir/include/mlir/Dialect/Affine/Passes.h
+index 61f24255f..e4bb73315 100644
+--- a/mlir/include/mlir/Dialect/Affine/Passes.h
++++ b/mlir/include/mlir/Dialect/Affine/Passes.h
+@@ -116,6 +116,9 @@ std::unique_ptr<OperationPass<func::FuncOp>> createPipelineDataTransferPass();
+ /// operations (not necessarily restricted to Affine dialect).
+ std::unique_ptr<Pass> createAffineExpandIndexOpsPass();
+ 
++std::unique_ptr<OperationPass<func::FuncOp>> createJirAffineVectorizePass();
++std::unique_ptr<OperationPass<func::FuncOp>> createJirTerminalSubviewEliminatePass();
++
+ //===----------------------------------------------------------------------===//
+ // Registration
+ //===----------------------------------------------------------------------===//
+diff --git a/mlir/include/mlir/Dialect/Affine/Passes.td b/mlir/include/mlir/Dialect/Affine/Passes.td
+index 1036e93a0..25f87f1d2 100644
+--- a/mlir/include/mlir/Dialect/Affine/Passes.td
++++ b/mlir/include/mlir/Dialect/Affine/Passes.td
+@@ -408,4 +408,18 @@ def AffineExpandIndexOps : Pass<"affine-expand-index-ops"> {
+   let constructor = "mlir::affine::createAffineExpandIndexOpsPass()";
+ }
+ 
++def JirAffineVectorize : Pass<"jir-affine-vectorize", "func::FuncOp"> {
++  let summary = "Vectorize affine loops based on jir.transform.vectorize annotations";
++  let constructor = "mlir::affine::createJirAffineVectorizePass()";
++  let dependentDialects = ["vector::VectorDialect"];
++  let options = [];
++}
++
++def JirTerminalSubviewEliminate : Pass<"jir-terminal-subview-eliminate", "func::FuncOp"> {
++  let summary = "Eliminate terminal memref.subviews before affine.load/.store";
++  let constructor = "mlir::affine::createJirTerminalSubviewEliminatePass()";
++  let dependentDialects = ["memref::MemRefDialect"];
++  let options = [];
++}
++
+ #endif // MLIR_DIALECT_AFFINE_PASSES
+diff --git a/mlir/lib/Dialect/Affine/Transforms/CMakeLists.txt b/mlir/lib/Dialect/Affine/Transforms/CMakeLists.txt
+index 60d14a373..d2ba50ac5 100644
+--- a/mlir/lib/Dialect/Affine/Transforms/CMakeLists.txt
++++ b/mlir/lib/Dialect/Affine/Transforms/CMakeLists.txt
+@@ -15,6 +15,8 @@ add_mlir_dialect_library(MLIRAffineTransforms
+   ReifyValueBounds.cpp
+   SuperVectorize.cpp
+   SimplifyAffineStructures.cpp
++  JirAffineVectorize.cpp
++  JirTerminalSubviewEliminate.cpp
+ 
+   ADDITIONAL_HEADER_DIRS
+   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/Affine
+diff --git a/mlir/lib/Dialect/Affine/Transforms/JirAffineVectorize.cpp b/mlir/lib/Dialect/Affine/Transforms/JirAffineVectorize.cpp
+new file mode 100644
+index 000000000..c018546a0
+--- /dev/null
++++ b/mlir/lib/Dialect/Affine/Transforms/JirAffineVectorize.cpp
+@@ -0,0 +1,58 @@
++#include "mlir/Dialect/Affine/Passes.h"
++
++#include "mlir/Dialect/Affine/IR/AffineOps.h"
++#include "mlir/Dialect/Affine/Transforms/Transforms.h"
++#include "mlir/Dialect/Affine/Utils.h"
++#include "mlir/Dialect/Func/IR/FuncOps.h"
++#include "mlir/Dialect/Vector/IR/VectorOps.h"
++#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
++
++namespace mlir {
++namespace affine {
++#define GEN_PASS_DEF_JIRAFFINEVECTORIZE
++#include "mlir/Dialect/Affine/Passes.h.inc"
++} // namespace affine
++} // namespace mlir
++
++using namespace mlir;
++using namespace mlir::affine;
++
++namespace {
++
++class JirAffineVectorizePass
++    : public affine::impl::JirAffineVectorizeBase<JirAffineVectorizePass> {
++public:
++  JirAffineVectorizePass() = default;
++
++  void runOnOperation() override {
++    auto func = getOperation();
++
++    SmallVector<std::pair<int64_t, AffineForOp>> worklist;
++    func.walk([&](Operation *op) {
++      auto forOp = dyn_cast<AffineForOp>(op);
++      if (forOp && op->hasAttrOfType<IntegerAttr>("jir.transform.vectorize")) {
++        auto attr = op->getAttrOfType<IntegerAttr>("jir.transform.vectorize");
++        worklist.emplace_back(attr.getInt(), forOp);
++      }
++    });
++
++    for (auto [vectorSize, forOp] : worklist) {
++      VectorizationStrategy strategy;
++      strategy.vectorSizes.push_back(vectorSize);
++      strategy.loopToVectorDim[forOp] = 0;
++
++      std::vector<SmallVector<AffineForOp, 2>> loopsToVectorize;
++      loopsToVectorize.push_back({forOp});
++      if (!succeeded(vectorizeAffineLoopNest(loopsToVectorize, strategy))) {
++        return signalPassFailure();
++      }
++    }
++  }
++};
++
++} // namespace
++
++std::unique_ptr<OperationPass<func::FuncOp>>
++mlir::affine::createJirAffineVectorizePass() {
++  return std::make_unique<JirAffineVectorizePass>();
++}
+diff --git a/mlir/lib/Dialect/Affine/Transforms/JirTerminalSubviewEliminate.cpp b/mlir/lib/Dialect/Affine/Transforms/JirTerminalSubviewEliminate.cpp
+new file mode 100644
+index 000000000..c0870158d
+--- /dev/null
++++ b/mlir/lib/Dialect/Affine/Transforms/JirTerminalSubviewEliminate.cpp
+@@ -0,0 +1,80 @@
++#include "mlir/Dialect/Affine/Passes.h"
++
++#include "mlir/Dialect/Affine/IR/AffineOps.h"
++#include "mlir/Dialect/Affine/Transforms/Transforms.h"
++#include "mlir/Dialect/Affine/Utils.h"
++#include "mlir/Dialect/Func/IR/FuncOps.h"
++#include "mlir/Dialect/MemRef/IR/MemRef.h"
++#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
++
++namespace mlir {
++namespace affine {
++#define GEN_PASS_DEF_JIRTERMINALSUBVIEWELIMINATE
++#include "mlir/Dialect/Affine/Passes.h.inc"
++} // namespace affine
++} // namespace mlir
++
++using namespace mlir;
++using namespace mlir::affine;
++
++namespace {
++
++class JirTerminalSubviewEliminatePass
++    : public affine::impl::JirTerminalSubviewEliminateBase<JirTerminalSubviewEliminatePass> {
++public:
++  JirTerminalSubviewEliminatePass() = default;
++
++  void runOnOperation() override {
++    auto func = getOperation();
++
++    SmallVector<std::tuple<AffineLoadOp, memref::SubViewOp, MemRefType>> load_ops;
++    SmallVector<std::tuple<AffineStoreOp, memref::SubViewOp, MemRefType>> store_ops;
++    
++    func.walk([&](Operation *op) {
++      auto loadOp = dyn_cast<AffineLoadOp>(op);
++      if (loadOp && loadOp.getIndices().size() == 0) {
++        auto memref = *loadOp.getODSOperands(0).begin();
++        if (memref && memref.getDefiningOp()) {
++          auto memrefType = dyn_cast<MemRefType>(memref.getType());
++          auto subview = dyn_cast<memref::SubViewOp>(memref.getDefiningOp());
++          if (subview && memrefType && memrefType.getShape().size() == 0 && subview.getOffsets().size() == 1) {
++            load_ops.emplace_back(loadOp, subview, memrefType);
++          }
++        }
++        return;
++      }
++
++      auto storeOp = dyn_cast<AffineStoreOp>(op);
++      if (storeOp && storeOp.getIndices().size() == 0) {
++        auto memref = *storeOp.getODSOperands(1).begin();
++        if (memref && memref.getDefiningOp()) {
++          auto memrefType = dyn_cast<MemRefType>(memref.getType());
++          auto subview = dyn_cast<memref::SubViewOp>(memref.getDefiningOp());
++          if (subview && memrefType && memrefType.getShape().size() == 0 && subview.getOffsets().size() == 1) {
++            store_ops.emplace_back(storeOp, subview, memrefType);
++          }
++        }
++      }
++    });
++
++    IRRewriter rewriter(&getContext());
++    for (auto [loadOp, subviewOp, memrefType] : load_ops) {
++      rewriter.setInsertionPoint(loadOp);
++
++      (void) rewriter.replaceOpWithNewOp<AffineLoadOp>(loadOp, subviewOp.getSource(), ValueRange{*subviewOp.getOffsets().begin()});
++    }
++
++    for (auto [storeOp, subviewOp, memrefType] : store_ops) {
++      rewriter.setInsertionPoint(storeOp);
++
++      (void) rewriter.replaceOpWithNewOp<AffineStoreOp>(storeOp, storeOp.getValueToStore(), subviewOp.getSource(), ValueRange{*subviewOp.getOffsets().begin()});
++    }
++  }
++};
++
++} // namespace
++
++std::unique_ptr<OperationPass<func::FuncOp>>
++mlir::affine::createJirTerminalSubviewEliminatePass() {
++  return std::make_unique<JirTerminalSubviewEliminatePass>();
++}
+-- 
+2.34.1
+

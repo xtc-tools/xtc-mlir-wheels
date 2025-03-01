@@ -1,0 +1,171 @@
+From 43e6dca4c205e6f739c99d1d40c65696aadf6b85 Mon Sep 17 00:00:00 2001
+From: Jevgenijs Protopopovs <jevgenijs.protopopovs@inria.fr>
+Date: Mon, 24 Jun 2024 12:41:16 +0200
+Subject: [PATCH 5/5] Add memref-noalias option to async-parallel-for transform
+ pass
+
+---
+ mlir/include/mlir/Dialect/Async/Passes.h      |  3 +-
+ mlir/include/mlir/Dialect/Async/Passes.td     |  6 +++-
+ mlir/include/mlir/Dialect/Async/Transforms.h  |  2 +-
+ .../Async/Transforms/AsyncParallelFor.cpp     | 33 ++++++++++++-------
+ 4 files changed, 30 insertions(+), 14 deletions(-)
+
+diff --git a/mlir/include/mlir/Dialect/Async/Passes.h b/mlir/include/mlir/Dialect/Async/Passes.h
+index 090768cd0..a03bbdca8 100644
+--- a/mlir/include/mlir/Dialect/Async/Passes.h
++++ b/mlir/include/mlir/Dialect/Async/Passes.h
+@@ -26,7 +26,8 @@ std::unique_ptr<Pass> createAsyncParallelForPass();
+ 
+ std::unique_ptr<Pass> createAsyncParallelForPass(bool asyncDispatch,
+                                                  int32_t numWorkerThreads,
+-                                                 int32_t minTaskSize);
++                                                 int32_t minTaskSize,
++                                                 bool memrefNoalias);
+ 
+ void populateAsyncFuncToAsyncRuntimeConversionPatterns(
+     RewritePatternSet &patterns, ConversionTarget &target);
+diff --git a/mlir/include/mlir/Dialect/Async/Passes.td b/mlir/include/mlir/Dialect/Async/Passes.td
+index f0ef83ca3..913f039e0 100644
+--- a/mlir/include/mlir/Dialect/Async/Passes.td
++++ b/mlir/include/mlir/Dialect/Async/Passes.td
+@@ -30,7 +30,11 @@ def AsyncParallelFor : Pass<"async-parallel-for", "ModuleOp"> {
+ 
+     Option<"minTaskSize", "min-task-size",
+       "int32_t", /*default=*/"1000",
+-      "The minimum task size for sharding parallel operation.">
++      "The minimum task size for sharding parallel operation.">,
++
++    Option<"memrefNoalias", "memref-noalias",
++      "bool", /*default=*/"false",
++      "Annotate all captured memref's with llvm.noalias attribute.">,
+   ];
+ 
+   let dependentDialects = [
+diff --git a/mlir/include/mlir/Dialect/Async/Transforms.h b/mlir/include/mlir/Dialect/Async/Transforms.h
+index 7e7276281..18da0ed2d 100644
+--- a/mlir/include/mlir/Dialect/Async/Transforms.h
++++ b/mlir/include/mlir/Dialect/Async/Transforms.h
+@@ -31,7 +31,7 @@ using AsyncMinTaskSizeComputationFunction =
+ /// Add a pattern to the given pattern list to lower scf.parallel to async
+ /// operations.
+ void populateAsyncParallelForPatterns(
+-    RewritePatternSet &patterns, bool asyncDispatch, int32_t numWorkerThreads,
++    RewritePatternSet &patterns, bool asyncDispatch, int32_t numWorkerThreads, bool memrefNoalias,
+     const AsyncMinTaskSizeComputationFunction &computeMinTaskSize);
+ 
+ } // namespace async
+diff --git a/mlir/lib/Dialect/Async/Transforms/AsyncParallelFor.cpp b/mlir/lib/Dialect/Async/Transforms/AsyncParallelFor.cpp
+index 8c3e25355..70e51bb5c 100644
+--- a/mlir/lib/Dialect/Async/Transforms/AsyncParallelFor.cpp
++++ b/mlir/lib/Dialect/Async/Transforms/AsyncParallelFor.cpp
+@@ -103,10 +103,11 @@ struct AsyncParallelForPass
+   AsyncParallelForPass() = default;
+ 
+   AsyncParallelForPass(bool asyncDispatch, int32_t numWorkerThreads,
+-                       int32_t minTaskSize) {
++                       int32_t minTaskSize, bool memrefNoalias) {
+     this->asyncDispatch = asyncDispatch;
+     this->numWorkerThreads = numWorkerThreads;
+     this->minTaskSize = minTaskSize;
++    this->memrefNoalias = memrefNoalias;
+   }
+ 
+   void runOnOperation() override;
+@@ -115,11 +116,11 @@ struct AsyncParallelForPass
+ struct AsyncParallelForRewrite : public OpRewritePattern<scf::ParallelOp> {
+ public:
+   AsyncParallelForRewrite(
+-      MLIRContext *ctx, bool asyncDispatch, int32_t numWorkerThreads,
++      MLIRContext *ctx, bool asyncDispatch, int32_t numWorkerThreads, bool memrefNoalias,
+       AsyncMinTaskSizeComputationFunction computeMinTaskSize)
+       : OpRewritePattern(ctx), asyncDispatch(asyncDispatch),
+         numWorkerThreads(numWorkerThreads),
+-        computeMinTaskSize(std::move(computeMinTaskSize)) {}
++        computeMinTaskSize(std::move(computeMinTaskSize)), memrefNoalias(memrefNoalias) {}
+ 
+   LogicalResult matchAndRewrite(scf::ParallelOp op,
+                                 PatternRewriter &rewriter) const override;
+@@ -128,6 +129,7 @@ private:
+   bool asyncDispatch;
+   int32_t numWorkerThreads;
+   AsyncMinTaskSizeComputationFunction computeMinTaskSize;
++  bool memrefNoalias;
+ };
+ 
+ struct ParallelComputeFunctionType {
+@@ -253,7 +255,7 @@ getParallelComputeFunctionType(scf::ParallelOp op, PatternRewriter &rewriter) {
+ // Create a parallel compute fuction from the parallel operation.
+ static ParallelComputeFunction createParallelComputeFunction(
+     scf::ParallelOp op, const ParallelComputeFunctionBounds &bounds,
+-    unsigned numBlockAlignedInnerLoops, PatternRewriter &rewriter) {
++    unsigned numBlockAlignedInnerLoops, PatternRewriter &rewriter, bool memrefNoalias) {
+   OpBuilder::InsertionGuard guard(rewriter);
+   ImplicitLocOpBuilder b(op.getLoc(), rewriter);
+ 
+@@ -268,6 +270,14 @@ static ParallelComputeFunction createParallelComputeFunction(
+       numBlockAlignedInnerLoops > 0 ? "parallel_compute_fn_with_aligned_loops"
+                                     : "parallel_compute_fn",
+       type);
++  if (memrefNoalias) {
++    for (size_t i = 0; i < func.getArgumentTypes().size(); i++) {
++      auto argType = func.getArgumentTypes()[i];
++      if (argType.isa<MemRefType>()) {
++        func.setArgAttr(i, "llvm.noalias", rewriter.getUnitAttr());
++      }
++    }
++  }
+   func.setPrivate();
+ 
+   // Insert function into the module symbol table and assign it unique name.
+@@ -877,7 +887,7 @@ AsyncParallelForRewrite::matchAndRewrite(scf::ParallelOp op,
+     // Dispatch parallel compute function without hints to unroll inner loops.
+     auto dispatchDefault = [&](OpBuilder &nestedBuilder, Location loc) {
+       ParallelComputeFunction compute =
+-          createParallelComputeFunction(op, staticBounds, 0, rewriter);
++          createParallelComputeFunction(op, staticBounds, 0, rewriter, memrefNoalias);
+ 
+       ImplicitLocOpBuilder b(loc, nestedBuilder);
+       doDispatch(b, rewriter, compute, op, blockSize, blockCount, tripCounts);
+@@ -887,7 +897,7 @@ AsyncParallelForRewrite::matchAndRewrite(scf::ParallelOp op,
+     // Dispatch parallel compute function with hints for unrolling inner loops.
+     auto dispatchBlockAligned = [&](OpBuilder &nestedBuilder, Location loc) {
+       ParallelComputeFunction compute = createParallelComputeFunction(
+-          op, staticBounds, numUnrollableLoops, rewriter);
++          op, staticBounds, numUnrollableLoops, rewriter, memrefNoalias);
+ 
+       ImplicitLocOpBuilder b(loc, nestedBuilder);
+       // Align the block size to be a multiple of the statically known
+@@ -932,7 +942,7 @@ void AsyncParallelForPass::runOnOperation() {
+ 
+   RewritePatternSet patterns(ctx);
+   populateAsyncParallelForPatterns(
+-      patterns, asyncDispatch, numWorkerThreads,
++      patterns, asyncDispatch, numWorkerThreads, memrefNoalias,
+       [&](ImplicitLocOpBuilder builder, scf::ParallelOp op) {
+         return builder.create<arith::ConstantIndexOp>(minTaskSize);
+       });
+@@ -946,15 +956,16 @@ std::unique_ptr<Pass> mlir::createAsyncParallelForPass() {
+ 
+ std::unique_ptr<Pass> mlir::createAsyncParallelForPass(bool asyncDispatch,
+                                                        int32_t numWorkerThreads,
+-                                                       int32_t minTaskSize) {
++                                                       int32_t minTaskSize,
++                                                       bool memrefNoalias) {
+   return std::make_unique<AsyncParallelForPass>(asyncDispatch, numWorkerThreads,
+-                                                minTaskSize);
++                                                minTaskSize, memrefNoalias);
+ }
+ 
+ void mlir::async::populateAsyncParallelForPatterns(
+-    RewritePatternSet &patterns, bool asyncDispatch, int32_t numWorkerThreads,
++    RewritePatternSet &patterns, bool asyncDispatch, int32_t numWorkerThreads, bool memrefNoalias,
+     const AsyncMinTaskSizeComputationFunction &computeMinTaskSize) {
+   MLIRContext *ctx = patterns.getContext();
+-  patterns.add<AsyncParallelForRewrite>(ctx, asyncDispatch, numWorkerThreads,
++  patterns.add<AsyncParallelForRewrite>(ctx, asyncDispatch, numWorkerThreads, memrefNoalias,
+                                         computeMinTaskSize);
+ }
+-- 
+2.34.1
+

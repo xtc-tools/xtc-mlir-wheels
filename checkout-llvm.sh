@@ -14,8 +14,8 @@ git reset --hard FETCH_HEAD
 git submodule init
 git submodule update --recursive --depth 1
 
-if [ -d "$dir"/patches ]; then
-    for patch in "$dir"/patches/*.patch; do
+if [ -d "$dir"/patches/llvm ]; then
+    for patch in "$dir"/patches/llvm/*.patch; do
         patch -p1 <"$patch"
     done
 fi

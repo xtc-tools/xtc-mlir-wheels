@@ -1,0 +1,94 @@
+From a36acafdbf622f59c6e4dcd95b7badda554cf234 Mon Sep 17 00:00:00 2001
+From: Jevgenijs Protopopovs <jevgenijs.protopopovs@inria.fr>
+Date: Mon, 29 Apr 2024 15:06:10 +0200
+Subject: [PATCH 1/5] Implement correct lowring of memref with i4 element type
+ to llvm
+
+---
+ .../Conversion/MemRefToLLVM/MemRefToLLVM.cpp  | 70 +++++++++++++++++++
+ 1 file changed, 70 insertions(+)
+
+diff --git a/mlir/lib/Conversion/MemRefToLLVM/MemRefToLLVM.cpp b/mlir/lib/Conversion/MemRefToLLVM/MemRefToLLVM.cpp
+index 2dc42f0a8..a1dc01f06 100644
+--- a/mlir/lib/Conversion/MemRefToLLVM/MemRefToLLVM.cpp
++++ b/mlir/lib/Conversion/MemRefToLLVM/MemRefToLLVM.cpp
+@@ -588,6 +588,76 @@ struct LoadOpLowering : public LoadStoreOpLowering<memref::LoadOp> {
+   matchAndRewrite(memref::LoadOp loadOp, OpAdaptor adaptor,
+                   ConversionPatternRewriter &rewriter) const override {
+     auto type = loadOp.getMemRefType();
++    auto elementType = type.getElementType();
++    if (auto integralElementType = dyn_cast<IntegerType>(elementType)) {
++      if (integralElementType.getWidth() == 4) {
++        auto loc = loadOp.getLoc();
++        MemRefDescriptor memRefDescriptor(adaptor.getMemref());
++        Type indexType = getIndexType();
++        auto indices = adaptor.getIndices();
++
++        auto [strides, offsetCst] = getStridesAndOffset(type);
++        Value base = memRefDescriptor.alignedPtr(rewriter, loc);
++        Value index;
++        if (offsetCst != 0) {
++          Type indexType = getTypeConverter()->getIndexType();
++          index =
++              ShapedType::isDynamic(offsetCst)
++                  ? memRefDescriptor.offset(rewriter, loc)
++                  : createIndexAttrConstant(rewriter, loc, indexType, offsetCst);
++        }
++        // Value base =
++        //     memRefDescriptor.bufferPtr(rewriter, loc, *getTypeConverter(), type);
++
++        // Value index;
++        for (int i = 0, e = indices.size(); i < e; ++i) {
++          Value increment = indices[i];
++          if (strides[i] != 1) { // Skip if stride is 1.
++            Value stride =
++                ShapedType::isDynamic(strides[i])
++                    ? memRefDescriptor.stride(rewriter, loc, i)
++                    : createIndexAttrConstant(rewriter, loc, indexType, strides[i]);
++            increment = rewriter.create<LLVM::MulOp>(loc, increment, stride);
++          }
++          index =
++              index ? rewriter.create<LLVM::AddOp>(loc, index, increment) : increment;
++        }
++
++        Value position, offset;
++        Value one_const = rewriter.create<LLVM::ConstantOp>(loc, indexType, 1);
++        Value two_const = rewriter.create<LLVM::ConstantOp>(loc, indexType, 2);
++        if (index) {
++          position = rewriter.create<LLVM::LShrOp>(loc, index, one_const);
++        }
++
++        Type elementPtrType = memRefDescriptor.getElementPtrType();
++        Value pointer = position ? rewriter.create<LLVM::GEPOp>(
++                          loc, elementPtrType,
++                          getTypeConverter()->convertType(type.getElementType()),
++                          base, position)
++                    : base;
++
++        Value value = rewriter.create<LLVM::LoadOp>(
++            loc, typeConverter->convertType(rewriter.getI8Type()), pointer, 0,
++            false, loadOp.getNontemporal());
++
++        if (index) {
++          Value offset = rewriter.create<LLVM::AndOp>(loc, index, one_const);
++          offset = rewriter.create<LLVM::ShlOp>(loc, offset, two_const);
++          offset = rewriter.create<LLVM::TruncOp>(loc, rewriter.getI8Type(), offset);
++          value = rewriter.create<LLVM::LShrOp>(loc, value, offset);
++        }
++
++        value = rewriter.create<LLVM::TruncOp>(loc, elementType, value);
++
++        // llvm::errs() << base << '\n' << index << '\n' << pointer << '\n' << value << '\n';
++
++        rewriter.replaceOp(loadOp, value);
++        return success();
++      } else {
++        assert(integralElementType.getWidth() >= 8);
++      }
++    }
+ 
+     Value dataPtr =
+         getStridedElementPtr(loadOp.getLoc(), type, adaptor.getMemref(),
+-- 
+2.34.1
+
