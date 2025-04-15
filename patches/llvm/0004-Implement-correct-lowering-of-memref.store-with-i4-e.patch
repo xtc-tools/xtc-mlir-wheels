@@ -25,7 +25,7 @@ index a1dc01f06..4bb955e0f 100644
 +        Type indexType = getIndexType();
 +        auto indices = adaptor.getIndices();
 +
-+        auto [strides, offsetCst] = getStridesAndOffset(type);
++        auto [strides, offsetCst] = type.getStridesAndOffset();
 +        Value base = memRefDescriptor.alignedPtr(rewriter, loc);
 +        Value index;
 +        if (offsetCst != 0) {
