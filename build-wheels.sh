@@ -9,6 +9,11 @@ cd "$dir"
 
 BUILD_LLVM_DEBUG_TARGET="${BUILD_LLVM_DEBUG_TARGET:-}"
 BUILD_LLVM_CLEAN_BUILD_DIR="${BUILD_LLVM_CLEAN_BUILD_DIR:-1}"
+BUILD_LLVM_CCACHE="${BUILD_LLVM_CCACHE:-0}"
+CIBW_DEBUG_KEEP_CONTAINER="${CIBW_DEBUG_KEEP_CONTAINER:-0}"
+
+# One of: "", bins, default. Used to be bins, now "" (add default tools).
+BUILD_LLVM_COMPONENTS=""
 
 # Note: we build only cp310-manylinux because the genrated package
 # is not python version/abi dependent, only platform dependent,
@@ -21,15 +26,15 @@ env \
     CIBW_BUILD='cp310-manylinux*' \
     CIBW_PROJECT_REQUIRES_PYTHON='>=3.10' \
     CIBW_MANYLINUX_X86_64_IMAGE='manylinux_2_28' \
-    CIBW_BEFORE_ALL='./install-build-tools.sh && ./update-ccache-from-host.sh && env BUILD_LLVM_MLIR_BINDINGS=0 BUILD_LLVM_TOOLS=1 BUILD_LLVM_COMPONENTS=bins BUILD_LLVM_CCACHE=0 ./build-mlir-bindings.sh' \
-    CIBW_BEFORE_BUILD='rm -rf dist build *egg-info' \
+    CIBW_BEFORE_ALL="./install-build-tools.sh && ./update-ccache-from-host.sh && env BUILD_LLVM_MLIR_BINDINGS=0 BUILD_LLVM_TOOLS=1 BUILD_LLVM_COMPONENTS=$BUILD_LLVM_COMPONENTS ./build-mlir-bindings.sh" \
+    CIBW_BEFORE_BUILD="rm -rf dist build *egg-info" \
     CIBW_TEST_COMMAND='{package}/test-installed.sh' \
     BUILD_LLVM_DEBUG_TARGET="$BUILD_LLVM_DEBUG_TARGET" \
     BUILD_LLVM_CLEAN_BUILD_DIR="$BUILD_LLVM_CLEAN_BUILD_DIR" \
+    BUILD_LLVM_CCACHE="$BUILD_LLVM_CCACHE" \
     BUILD_LLVM_REVISION="$BUILD_LLVM_REVISION" \
-    CIBW_ENVIRONMENT_PASS_LINUX="BUILD_LLVM_DEBUG_TARGET BUILD_LLVM_CLEAN_BUILD_DIR BUILD_LLVM_REVISION" \
+    CIBW_ENVIRONMENT_PASS_LINUX="BUILD_LLVM_DEBUG_TARGET BUILD_LLVM_CLEAN_BUILD_DIR BUILD_LLVM_REVISION BUILD_LLVM_CCACHE" \
     CIBW_BUILD_VERBOSITY=1 \
+    CIBW_DEBUG_KEEP_CONTAINER="$CIBW_DEBUG_KEEP_CONTAINER" \
     cibuildwheel \
     .
-
-#    CIBW_DEBUG_KEEP_CONTAINER=1 \
