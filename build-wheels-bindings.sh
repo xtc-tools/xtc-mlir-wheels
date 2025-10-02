@@ -8,7 +8,8 @@ BUILD_LLVM_REVISION="$(cat "$dir"/llvm_revision.txt)"
 cd "$dir"
 
 # Build bindings, first fill cache, then build bindings per python version
-# Note that there is an issue with python 3.13, skipped
+# Note that the llvm build 1.19.x is not compatible with python 3.13/3.14
+# hence we can't build for these python versions. Need to move to llvm >=1.21.
 env \
     CIBW_PLATFORM='linux' \
     CIBW_ARCHS='x86_64' \
