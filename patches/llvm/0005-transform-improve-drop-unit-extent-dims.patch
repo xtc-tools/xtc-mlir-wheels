@@ -1,0 +1,82 @@
+From 1642076ebe6c13207f7cb98db17aec5f2c58a87e Mon Sep 17 00:00:00 2001
+From: Christophe Guillon <christophe.guillon@inria.fr>
+Date: Thu, 2 Oct 2025 16:43:55 +0200
+Subject: [PATCH] transform: improve drop unit extent dims
+
+---
+ .../Linalg/Transforms/DropUnitDims.cpp        | 52 ++++++++++++++++++-
+ 1 file changed, 51 insertions(+), 1 deletion(-)
+
+diff --git a/mlir/lib/Dialect/Linalg/Transforms/DropUnitDims.cpp b/mlir/lib/Dialect/Linalg/Transforms/DropUnitDims.cpp
+index 36f8696bf1b2..27b164172687 100644
+--- a/mlir/lib/Dialect/Linalg/Transforms/DropUnitDims.cpp
++++ b/mlir/lib/Dialect/Linalg/Transforms/DropUnitDims.cpp
+@@ -386,6 +386,53 @@ static UnitExtentReplacementInfo dropUnitExtentFromOperandMetadata(
+   return info;
+ }
+ 
++namespace {
++    // These functions are available as MemRefType methods in llvm >= 1.21
++    // When cherry picking this patch, remove this and change occurences of
++    // these functions calls to MemRefType method calls.
++    static int64_t getNumContiguousTrailingDims(MemRefType type) {
++        const int64_t n = type.getRank();
++
++        // memrefs with identity layout are entirely contiguous.
++        if (type.getLayout().isIdentity())
++            return n;
++
++        // Get the strides (if any). Failing to do that, conservatively assume a
++        // non-contiguous layout.
++        int64_t offset;
++        SmallVector<int64_t> strides;
++        if (!succeeded(getStridesAndOffset(type, strides, offset)))
++            return 0;
++
++        ArrayRef<int64_t> shape = type.getShape();
++
++        // A memref with dimensions `d0, d1, ..., dn-1` and strides
++        // `s0, s1, ..., sn-1` is contiguous up to dimension `k`
++        // if each stride `si` is the product of the dimensions `di+1, ..., dn-1`,
++        // for `i` in `[k, n-1]`.
++        // Ignore stride elements if the corresponding dimension is 1, as they are
++        // of no consequence.
++        int64_t dimProduct = 1;
++        for (int64_t i = n - 1; i >= 0; --i) {
++            if (shape[i] == 1)
++                continue;
++            if (strides[i] != dimProduct)
++                return n - i - 1;
++            if (shape[i] == ShapedType::kDynamic)
++                return n - i;
++            dimProduct *= shape[i];
++        }
++
++        return n;
++    }
++
++    static bool areTrailingDimsContiguous(MemRefType type, int64_t n) {
++        assert(n <= type.getRank() &&
++               "number of dimensions to check must not exceed rank");
++        return n <= getNumContiguousTrailingDims(type);
++    }
++}
++
+ LogicalResult linalg::dropUnitDims(RewriterBase &rewriter, GenericOp genericOp,
+                                    const ControlDropUnitDims &options) {
+   SmallVector<AffineMap> indexingMaps = genericOp.getIndexingMapsArray();
+@@ -457,7 +504,10 @@ LogicalResult linalg::dropUnitDims(RewriterBase &rewriter, GenericOp genericOp,
+   auto hasCollapsibleType = [](OpOperand &operand) {
+     Type operandType = operand.get().getType();
+     if (auto memrefOperandType = dyn_cast_or_null<MemRefType>(operandType)) {
+-      return memrefOperandType.getLayout().isIdentity();
++      auto rank = memrefOperandType.getRank();
++      auto continuous = areTrailingDimsContiguous(memrefOperandType, rank);
++      // Collapsible if continuous over all dimensions
++      return continuous;
+     }
+     if (auto tensorOperandType = dyn_cast<RankedTensorType>(operandType)) {
+       return tensorOperandType.getEncoding() == nullptr;
+-- 
+2.30.2
+
