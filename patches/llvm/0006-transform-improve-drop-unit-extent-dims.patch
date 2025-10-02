@@ -1,0 +1,28 @@
+From ce745d9a4ebc12b3d665b42df35128ab8945aa2e Mon Sep 17 00:00:00 2001
+From: Christophe Guillon <christophe.guillon@inria.fr>
+Date: Fri, 3 Oct 2025 13:25:29 +0200
+Subject: [PATCH] transform: improve drop unit extent dims
+
+---
+ mlir/lib/Dialect/Linalg/Transforms/DropUnitDims.cpp | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/mlir/lib/Dialect/Linalg/Transforms/DropUnitDims.cpp b/mlir/lib/Dialect/Linalg/Transforms/DropUnitDims.cpp
+index e0062d15e61c..8da45c9788d4 100644
+--- a/mlir/lib/Dialect/Linalg/Transforms/DropUnitDims.cpp
++++ b/mlir/lib/Dialect/Linalg/Transforms/DropUnitDims.cpp
+@@ -455,7 +455,10 @@ linalg::dropUnitDims(RewriterBase &rewriter, GenericOp genericOp,
+   auto hasCollapsibleType = [](OpOperand &operand) {
+     Type operandType = operand.get().getType();
+     if (auto memrefOperandType = dyn_cast_or_null<MemRefType>(operandType)) {
+-      return memrefOperandType.getLayout().isIdentity();
++      auto rank = memrefOperandType.getRank();
++      auto continuous = memrefOperandType.areTrailingDimsContiguous(rank);
++      // Collapsible if continuous over all dimensions
++      return continuous;
+     }
+     if (auto tensorOperandType = dyn_cast<RankedTensorType>(operandType)) {
+       return tensorOperandType.getEncoding() == nullptr;
+-- 
+2.30.2
+
