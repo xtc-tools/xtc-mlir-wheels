@@ -5,7 +5,7 @@ from setuptools.command.bdist_wheel import bdist_wheel
 
 
 PACKAGE_NAME = "mlir"
-PACKAGE_VERSION = "19.1.7.2025011203+cd708029"
+PACKAGE_VERSION = "19.1.7.2025011204+cd708029"
 
 
 class BinaryDistribution(Distribution):
