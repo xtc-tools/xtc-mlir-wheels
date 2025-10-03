@@ -5,7 +5,7 @@ from setuptools.command.bdist_wheel import bdist_wheel
 
 
 PACKAGE_NAME = "mlir-python-bindings"
-PACKAGE_VERSION = "19.1.7.2025011202+cd708029"
+PACKAGE_VERSION = "21.1.2.2025091601+b708aea0"
 
 
 class BinaryDistribution(Distribution):

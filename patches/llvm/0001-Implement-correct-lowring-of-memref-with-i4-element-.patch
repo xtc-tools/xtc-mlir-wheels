@@ -1,4 +1,4 @@
-From a36acafdbf622f59c6e4dcd95b7badda554cf234 Mon Sep 17 00:00:00 2001
+From 2f9eb78860c84a43d2b3f3cf29dcff93a0682f8b Mon Sep 17 00:00:00 2001
 From: Jevgenijs Protopopovs <jevgenijs.protopopovs@inria.fr>
 Date: Mon, 29 Apr 2024 15:06:10 +0200
 Subject: [PATCH 1/5] Implement correct lowring of memref with i4 element type
@@ -9,10 +9,10 @@ Subject: [PATCH 1/5] Implement correct lowring of memref with i4 element type
  1 file changed, 70 insertions(+)
 
 diff --git a/mlir/lib/Conversion/MemRefToLLVM/MemRefToLLVM.cpp b/mlir/lib/Conversion/MemRefToLLVM/MemRefToLLVM.cpp
-index 2dc42f0a8..a1dc01f06 100644
+index 83681b2d5fd8..1195f0674c9a 100644
 --- a/mlir/lib/Conversion/MemRefToLLVM/MemRefToLLVM.cpp
 +++ b/mlir/lib/Conversion/MemRefToLLVM/MemRefToLLVM.cpp
-@@ -588,6 +588,76 @@ struct LoadOpLowering : public LoadStoreOpLowering<memref::LoadOp> {
+@@ -880,6 +880,76 @@ struct LoadOpLowering : public LoadStoreOpLowering<memref::LoadOp> {
    matchAndRewrite(memref::LoadOp loadOp, OpAdaptor adaptor,
                    ConversionPatternRewriter &rewriter) const override {
      auto type = loadOp.getMemRefType();
@@ -87,8 +87,8 @@ index 2dc42f0a8..a1dc01f06 100644
 +      }
 +    }
  
-     Value dataPtr =
-         getStridedElementPtr(loadOp.getLoc(), type, adaptor.getMemref(),
+     // Per memref.load spec, the indices must be in-bounds:
+     // 0 <= idx < dim_size, and additionally all offsets are non-negative,
 -- 
 2.34.1
 
