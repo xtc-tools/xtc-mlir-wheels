@@ -38,8 +38,8 @@ default:
     - pip list
     - curl -sSL https://get.docker.com/ | sh
     # Check image manifest header
-    - curl -IL https://quay.io/v2/pypa/manylinux_2_28_x86_64/manifests/2024.11.16-1
-    - curl -sSL https://quay.io/v2/pypa/manylinux_2_28_x86_64/manifests/2024.11.16-1
+    - curl -IL https://quay.io/v2/pypa/manylinux_2_28_x86_64/manifests/2025.09.19-1
+    - curl -sSL https://quay.io/v2/pypa/manylinux_2_28_x86_64/manifests/2025.09.19-1
 
 linux-mlir-wheels:
   stage: build
