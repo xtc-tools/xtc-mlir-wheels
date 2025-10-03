@@ -25,7 +25,7 @@ CIBW_DEBUG_KEEP_CONTAINER="${CIBW_DEBUG_KEEP_CONTAINER:-0}"
 env \
     CIBW_PLATFORM='linux' \
     CIBW_ARCHS='x86_64' \
-    CIBW_BUILD='cp310-manylinux* cp311-manylinux* cp312-manylinux*' \
+    CIBW_BUILD='cp310-manylinux* cp311-manylinux* cp312-manylinux* cp313-manylinux* cp314-manylinux*' \
     CIBW_PROJECT_REQUIRES_PYTHON='>=3.10' \
     CIBW_MANYLINUX_X86_64_IMAGE='manylinux_2_28' \
     CIBW_CONTAINER_ENGINE="$CIBW_CONTAINER_ENGINE" \
