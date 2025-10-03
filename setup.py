@@ -39,7 +39,7 @@ if __name__ == "__main__":
             "bdist_wheel": CBdistWheel,
         },
         setup_requires = [
-            "setuptools>=69",
+            "setuptools>=80",
         ],
         zip_safe = False
     )
