@@ -1,18 +1,27 @@
-From 03f44699968c30375a34062ae9c3526362146b4d Mon Sep 17 00:00:00 2001
+From c5c199fe26e07e13f5dafdd5ab5a3e5fc399ada6 Mon Sep 17 00:00:00 2001
 From: Jevgenijs Protopopovs <jevgenijs.protopopovs@inria.fr>
 Date: Mon, 24 Jun 2024 09:02:46 +0200
 Subject: [PATCH 4/5] Implement correct lowering of memref.store with i4
  element type to llvm
 
 ---
- .../Conversion/MemRefToLLVM/MemRefToLLVM.cpp  | 75 +++++++++++++++++++
- 1 file changed, 75 insertions(+)
+ .../Conversion/MemRefToLLVM/MemRefToLLVM.cpp  | 77 ++++++++++++++++++-
+ 1 file changed, 76 insertions(+), 1 deletion(-)
 
 diff --git a/mlir/lib/Conversion/MemRefToLLVM/MemRefToLLVM.cpp b/mlir/lib/Conversion/MemRefToLLVM/MemRefToLLVM.cpp
-index a1dc01f06..4bb955e0f 100644
+index 1195f0674c9a..73f96362925d 100644
 --- a/mlir/lib/Conversion/MemRefToLLVM/MemRefToLLVM.cpp
 +++ b/mlir/lib/Conversion/MemRefToLLVM/MemRefToLLVM.cpp
-@@ -678,6 +678,81 @@ struct StoreOpLowering : public LoadStoreOpLowering<memref::StoreOp> {
+@@ -915,7 +915,7 @@ struct LoadOpLowering : public LoadStoreOpLowering<memref::LoadOp> {
+               index ? rewriter.create<LLVM::AddOp>(loc, index, increment) : increment;
+         }
+ 
+-        Value position, offset;
++        Value position;
+         Value one_const = rewriter.create<LLVM::ConstantOp>(loc, indexType, 1);
+         Value two_const = rewriter.create<LLVM::ConstantOp>(loc, indexType, 2);
+         if (index) {
+@@ -973,6 +973,81 @@ struct StoreOpLowering : public LoadStoreOpLowering<memref::StoreOp> {
    matchAndRewrite(memref::StoreOp op, OpAdaptor adaptor,
                    ConversionPatternRewriter &rewriter) const override {
      auto type = op.getMemRefType();
@@ -50,7 +59,7 @@ index a1dc01f06..4bb955e0f 100644
 +              index ? rewriter.create<LLVM::AddOp>(loc, index, increment) : increment;
 +        }
 +
-+        Value position, offset;
++        Value position;
 +        Value one_const = rewriter.create<LLVM::ConstantOp>(loc, indexType, 1);
 +        Value two_const = rewriter.create<LLVM::ConstantOp>(loc, indexType, 2);
 +        if (index) {
@@ -92,8 +101,8 @@ index a1dc01f06..4bb955e0f 100644
 +      }
 +    }
  
-     Value dataPtr = getStridedElementPtr(op.getLoc(), type, adaptor.getMemref(),
-                                          adaptor.getIndices(), rewriter);
+     // Per memref.store spec, the indices must be in-bounds:
+     // 0 <= idx < dim_size, and additionally all offsets are non-negative,
 -- 
 2.34.1
 

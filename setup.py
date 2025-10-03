@@ -5,7 +5,7 @@ from setuptools.command.bdist_wheel import bdist_wheel
 
 
 PACKAGE_NAME = "mlir"
-PACKAGE_VERSION = "20.1.2.2025031701+58df0ef8"
+PACKAGE_VERSION = "21.1.2.2025091601+b708aea0"
 
 
 class BinaryDistribution(Distribution):
@@ -39,7 +39,7 @@ if __name__ == "__main__":
             "bdist_wheel": CBdistWheel,
         },
         setup_requires = [
-            "setuptools>=69",
+            "setuptools>=80",
         ],
         zip_safe = False
     )

@@ -1,4 +1,4 @@
-From 90131ee864a842938968263e998cd4fc0c329013 Mon Sep 17 00:00:00 2001
+From d3bfa18a5feada7f1e1509880a7a2b2fc6b945bc Mon Sep 17 00:00:00 2001
 From: Jevgenijs Protopopovs <jevgenijs.protopopovs@inria.fr>
 Date: Mon, 6 May 2024 10:25:20 +0200
 Subject: [PATCH 3/5] Implement processing of JIR unroll annotations
@@ -16,12 +16,12 @@ Subject: [PATCH 3/5] Implement processing of JIR unroll annotations
  delete mode 100644 mlir/lib/Dialect/Affine/Transforms/JirAffineVectorize.cpp
 
 diff --git a/mlir/include/mlir/Dialect/Affine/Passes.h b/mlir/include/mlir/Dialect/Affine/Passes.h
-index e4bb73315..4a4d4ac4b 100644
+index eb6e79b13cf9..bba442d49e19 100644
 --- a/mlir/include/mlir/Dialect/Affine/Passes.h
 +++ b/mlir/include/mlir/Dialect/Affine/Passes.h
-@@ -116,7 +116,7 @@ std::unique_ptr<OperationPass<func::FuncOp>> createPipelineDataTransferPass();
- /// operations (not necessarily restricted to Affine dialect).
- std::unique_ptr<Pass> createAffineExpandIndexOpsPass();
+@@ -127,7 +127,7 @@ std::unique_ptr<Pass> createAffineExpandIndexOpsPass();
+ /// operations.
+ std::unique_ptr<Pass> createAffineExpandIndexOpsAsAffinePass();
  
 -std::unique_ptr<OperationPass<func::FuncOp>> createJirAffineVectorizePass();
 +std::unique_ptr<OperationPass<func::FuncOp>> createJirAffineTransformPass();
@@ -29,11 +29,11 @@ index e4bb73315..4a4d4ac4b 100644
  
  //===----------------------------------------------------------------------===//
 diff --git a/mlir/include/mlir/Dialect/Affine/Passes.td b/mlir/include/mlir/Dialect/Affine/Passes.td
-index 25f87f1d2..abf25f0f9 100644
+index 547676d03c34..5d68daa2bfbb 100644
 --- a/mlir/include/mlir/Dialect/Affine/Passes.td
 +++ b/mlir/include/mlir/Dialect/Affine/Passes.td
-@@ -408,9 +408,9 @@ def AffineExpandIndexOps : Pass<"affine-expand-index-ops"> {
-   let constructor = "mlir::affine::createAffineExpandIndexOpsPass()";
+@@ -441,9 +441,9 @@ def AffineExpandIndexOpsAsAffine : Pass<"affine-expand-index-ops-as-affine"> {
+   let constructor = "mlir::affine::createAffineExpandIndexOpsAsAffinePass()";
  }
  
 -def JirAffineVectorize : Pass<"jir-affine-vectorize", "func::FuncOp"> {
@@ -46,10 +46,10 @@ index 25f87f1d2..abf25f0f9 100644
    let options = [];
  }
 diff --git a/mlir/include/mlir/Dialect/Affine/Utils.h b/mlir/include/mlir/Dialect/Affine/Utils.h
-index 67c7a964f..50fb9d98a 100644
+index ac11f5a7c24c..5fba14ff34dd 100644
 --- a/mlir/include/mlir/Dialect/Affine/Utils.h
 +++ b/mlir/include/mlir/Dialect/Affine/Utils.h
-@@ -158,7 +158,8 @@ void vectorizeAffineLoops(
+@@ -160,7 +160,8 @@ void vectorizeAffineLoops(
  /// loops = {{%i1}}, to vectorize only the middle loop.
  LogicalResult
  vectorizeAffineLoopNest(std::vector<SmallVector<AffineForOp, 2>> &loops,
@@ -60,13 +60,13 @@ index 67c7a964f..50fb9d98a 100644
  /// Normalize a affine.parallel op so that lower bounds are 0 and steps are 1.
  /// As currently implemented, this transformation cannot fail and will return
 diff --git a/mlir/lib/Dialect/Affine/Transforms/CMakeLists.txt b/mlir/lib/Dialect/Affine/Transforms/CMakeLists.txt
-index d2ba50ac5..a9aef7575 100644
+index 2d6ceb6729e7..0394a725a191 100644
 --- a/mlir/lib/Dialect/Affine/Transforms/CMakeLists.txt
 +++ b/mlir/lib/Dialect/Affine/Transforms/CMakeLists.txt
-@@ -15,7 +15,7 @@ add_mlir_dialect_library(MLIRAffineTransforms
-   ReifyValueBounds.cpp
+@@ -18,7 +18,7 @@ add_mlir_dialect_library(MLIRAffineTransforms
    SuperVectorize.cpp
    SimplifyAffineStructures.cpp
+   SimplifyAffineMinMax.cpp
 -  JirAffineVectorize.cpp
 +  JirAffineTransform.cpp
    JirTerminalSubviewEliminate.cpp
@@ -74,7 +74,7 @@ index d2ba50ac5..a9aef7575 100644
    ADDITIONAL_HEADER_DIRS
 diff --git a/mlir/lib/Dialect/Affine/Transforms/JirAffineTransform.cpp b/mlir/lib/Dialect/Affine/Transforms/JirAffineTransform.cpp
 new file mode 100644
-index 000000000..df33a60fa
+index 000000000000..df33a60fad34
 --- /dev/null
 +++ b/mlir/lib/Dialect/Affine/Transforms/JirAffineTransform.cpp
 @@ -0,0 +1,83 @@
@@ -163,7 +163,7 @@ index 000000000..df33a60fa
 +}
 diff --git a/mlir/lib/Dialect/Affine/Transforms/JirAffineVectorize.cpp b/mlir/lib/Dialect/Affine/Transforms/JirAffineVectorize.cpp
 deleted file mode 100644
-index c018546a0..000000000
+index c018546a037f..000000000000
 --- a/mlir/lib/Dialect/Affine/Transforms/JirAffineVectorize.cpp
 +++ /dev/null
 @@ -1,58 +0,0 @@
@@ -226,10 +226,10 @@ index c018546a0..000000000
 -  return std::make_unique<JirAffineVectorizePass>();
 -}
 diff --git a/mlir/lib/Dialect/Affine/Transforms/SuperVectorize.cpp b/mlir/lib/Dialect/Affine/Transforms/SuperVectorize.cpp
-index 71e9648a5..9494aaf76 100644
+index 7fae260767e0..3a2685ba95c5 100644
 --- a/mlir/lib/Dialect/Affine/Transforms/SuperVectorize.cpp
 +++ b/mlir/lib/Dialect/Affine/Transforms/SuperVectorize.cpp
-@@ -1560,7 +1560,8 @@ getMatchedAffineLoops(NestedMatch match,
+@@ -1597,7 +1597,8 @@ getMatchedAffineLoops(NestedMatch match,
  /// using an n-D vectorization strategy.
  static LogicalResult
  vectorizeLoopNest(std::vector<SmallVector<AffineForOp, 2>> &loops,
@@ -239,7 +239,7 @@ index 71e9648a5..9494aaf76 100644
    assert(loops[0].size() == 1 && "Expected single root loop");
    AffineForOp rootLoop = loops[0][0];
    VectorizationState state(rootLoop.getContext());
-@@ -1616,6 +1617,10 @@ vectorizeLoopNest(std::vector<SmallVector<AffineForOp, 2>> &loops,
+@@ -1653,6 +1654,10 @@ vectorizeLoopNest(std::vector<SmallVector<AffineForOp, 2>> &loops,
    for (auto resPair : state.loopResultScalarReplacement)
      resPair.first.replaceAllUsesWith(resPair.second);
  
@@ -250,7 +250,7 @@ index 71e9648a5..9494aaf76 100644
    assert(state.opVectorReplacement.count(rootLoop) == 1 &&
           "Expected vector replacement for loop nest");
    LLVM_DEBUG(dbgs() << "\n[early-vect]+++++ success vectorizing pattern");
-@@ -1884,10 +1889,11 @@ void mlir::affine::vectorizeAffineLoops(
+@@ -1921,10 +1926,11 @@ void mlir::affine::vectorizeAffineLoops(
  /// loops = {{%i1}}, to vectorize only the middle loop.
  LogicalResult mlir::affine::vectorizeAffineLoopNest(
      std::vector<SmallVector<AffineForOp, 2>> &loops,
