@@ -52,7 +52,7 @@ linux-mlir-wheels:
     - python -m pip install -r requirements.txt
     - ./checkout-llvm.sh
     - ./build-wheels.sh
-    - test "$PUBLISH_PACKAGES" != true || env TWINE_REPOSITORY_URL="$REPOSITORY_URL" ./twine-upload.sh upload wheelhouse/*.whl
+    - test "$PUBLISH_PACKAGES" != true || env TWINE_REPOSITORY_URL="$REPOSITORY_URL" ./twine-upload.sh wheelhouse/*.whl
   artifacts:
     paths:
       - wheelhouse/
@@ -67,7 +67,7 @@ linux-mlir-bindings-wheels:
     - python -m pip install -r requirements.txt
     - ./checkout-llvm.sh
     - ./build-wheels-bindings.sh
-    - test "$PUBLISH_PACKAGES" != true || env TWINE_REPOSITORY_URL="$REPOSITORY_URL" ./twine-upload.sh upload wheelhouse/*.whl
+    - test "$PUBLISH_PACKAGES" != true || env TWINE_REPOSITORY_URL="$REPOSITORY_URL" ./twine-upload.sh wheelhouse/*.whl
   artifacts:
     paths:
       - wheelhouse/
