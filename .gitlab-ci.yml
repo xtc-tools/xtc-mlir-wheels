@@ -2,6 +2,7 @@ variables:
   TWINE_USERNAME: gitlab-ci-token
   TWINE_PASSWORD: $CI_JOB_TOKEN
   REPOSITORY_URL: $CI_API_V4_URL/projects/$CI_PROJECT_ID/packages/pypi
+  BUILD_CCACHE_DIR: /cache/$CI_PROJECT_PATH_SLUG/ccache
   PUBLISH_PACKAGES:
     description: "Publish python packages if true, forced for pipelines on tag"
     value: "false"
