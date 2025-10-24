@@ -1,0 +1,104 @@
+From 08b6b34338d99aa957f1081cd52bc3345398d5a9 Mon Sep 17 00:00:00 2001
+From: Sylvain Noiry <snoiry@kalrayinc.com>
+Date: Fri, 24 Oct 2025 16:26:24 +0200
+Subject: [PATCH] [GPU] Add simple pass to register host buffers
+
+- Add a "gpu-register-host-buffers" pass that insert gpu.host_register
+  for all memrefs of a function.
+---
+ .../mlir/Dialect/GPU/Transforms/Passes.td     |  5 ++
+ mlir/lib/Dialect/GPU/CMakeLists.txt           |  1 +
+ .../GPU/Transforms/RegisterHostBuffers.cpp    | 53 +++++++++++++++++++
+ 3 files changed, 59 insertions(+)
+ create mode 100644 mlir/lib/Dialect/GPU/Transforms/RegisterHostBuffers.cpp
+
+diff --git a/mlir/include/mlir/Dialect/GPU/Transforms/Passes.td b/mlir/include/mlir/Dialect/GPU/Transforms/Passes.td
+index 187ac9aa18aa..46104a74f2c1 100644
+--- a/mlir/include/mlir/Dialect/GPU/Transforms/Passes.td
++++ b/mlir/include/mlir/Dialect/GPU/Transforms/Passes.td
+@@ -30,6 +30,11 @@ def GpuAsyncRegionPass : Pass<"gpu-async-region", "func::FuncOp"> {
+   let dependentDialects = ["async::AsyncDialect"];
+ }
+ 
++def GpuRegisterHostBuffersPass : Pass<"gpu-register-host-buffers", "func::FuncOp"> {
++  let summary = "Register host buffers to GPU";
++  let dependentDialects = ["mlir::gpu::GPUDialect"];
++}
++
+ def GpuMapParallelLoopsPass
+     : Pass<"gpu-map-parallel-loops", "mlir::func::FuncOp"> {
+   let summary = "Greedily maps loops to GPU hardware dimensions.";
+diff --git a/mlir/lib/Dialect/GPU/CMakeLists.txt b/mlir/lib/Dialect/GPU/CMakeLists.txt
+index f2f010a771b7..1016c69ee627 100644
+--- a/mlir/lib/Dialect/GPU/CMakeLists.txt
++++ b/mlir/lib/Dialect/GPU/CMakeLists.txt
+@@ -29,6 +29,7 @@ add_mlir_dialect_library(MLIRGPUDialect
+ add_mlir_dialect_library(MLIRGPUTransforms
+   Transforms/AllReduceLowering.cpp
+   Transforms/AsyncRegionRewriter.cpp
++  Transforms/RegisterHostBuffers.cpp
+   Transforms/BufferDeallocationOpInterfaceImpl.cpp
+   Transforms/DecomposeMemRefs.cpp
+   Transforms/EliminateBarriers.cpp
+diff --git a/mlir/lib/Dialect/GPU/Transforms/RegisterHostBuffers.cpp b/mlir/lib/Dialect/GPU/Transforms/RegisterHostBuffers.cpp
+new file mode 100644
+index 000000000000..6d8dc627ec1b
+--- /dev/null
++++ b/mlir/lib/Dialect/GPU/Transforms/RegisterHostBuffers.cpp
+@@ -0,0 +1,53 @@
++//===- RegisterHostBuffers.cpp - Implementation of GPU register host buffers -===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// This file implements the GPU registration of host buffers of a function.
++//
++//===----------------------------------------------------------------------===//
++
++#include "mlir/Dialect/GPU/Transforms/Passes.h"
++
++#include "mlir/Dialect/Func/IR/FuncOps.h"
++#include "mlir/Dialect/GPU/IR/GPUDialect.h"
++#include "mlir/Dialect/MemRef/IR/MemRef.h"
++#include "mlir/Dialect/GPU/Utils/GPUUtils.h"
++#include "mlir/IR/Builders.h"
++#include "mlir/IR/IRMapping.h"
++#include "mlir/Interfaces/SideEffectInterfaces.h"
++#include "mlir/Support/LLVM.h"
++#include "llvm/ADT/TypeSwitch.h"
++
++namespace mlir {
++#define GEN_PASS_DEF_GPUREGISTERHOSTBUFFERSPASS
++#include "mlir/Dialect/GPU/Transforms/Passes.h.inc"
++} // namespace mlir
++
++using namespace mlir;
++
++namespace {
++class GpuRegisterHostBuffersPass
++    : public impl::GpuRegisterHostBuffersPassBase<GpuRegisterHostBuffersPass> {
++  void runOnOperation() override;
++};
++} // namespace
++
++void GpuRegisterHostBuffersPass::runOnOperation() {
++  func::FuncOp fOp = getOperation();
++  OpBuilder builder(fOp);
++  builder.setInsertionPointToStart(&fOp.getBody().front());
++  for (auto arg : fOp.getBody().front().getArguments()) {
++    if (auto memType = dyn_cast<MemRefType>(arg.getType())) {
++      // memref.cast
++      auto castedType = UnrankedMemRefType::get(memType.getElementType(), 0);
++      auto casted = builder.create<memref::CastOp>(fOp.getLoc(), castedType, arg).getResult();
++      // gpu.host_register
++      builder.create<gpu::HostRegisterOp>(fOp.getLoc(), casted);
++    }
++  }
++}
++
+-- 
+2.34.1
+
