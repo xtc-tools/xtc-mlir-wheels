@@ -105,6 +105,10 @@ if [ -z "$BUILD_LLVM_DEBUG_TARGET" ]; then
         ninja
         ninja install
     fi
+    if [ -d "$INSTALL_DIR"/lib ]; then
+        # remove useless so links
+        find "$INSTALL_DIR"/lib/ -type l -name '*.so' | xargs rm -f
+    fi
     if [ -d "$INSTALL_DIR"/python_packages ]; then
         # Move python bindings
         cp -R "$INSTALL_DIR"/python_packages/mlir_core/mlir "$INSTALL_BINDINGS_DIR"/
