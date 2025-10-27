@@ -10,8 +10,7 @@ NINJA_VERSION=1.12.1
 NINJA_URL="https://github.com/ninja-build/ninja/releases/download/v$NINJA_VERSION/ninja-linux.zip"
 
 # suppose already installed on MacOS
-if [ "$BUILD_PLATFORM" = "darwin" ]; then
-else
+if [ "$BUILD_PLATFORM" != "darwin" ]; then
 mkdir -p "$INSTALL_PREFIX/bin"
 mkdir tmp.ninja
 cd tmp.ninja
