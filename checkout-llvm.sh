@@ -16,6 +16,6 @@ git submodule update --recursive --depth 1
 
 if [ -d "$dir"/patches/llvm ]; then
     for patch in "$dir"/patches/llvm/*.patch; do
-        patch -p1 <"$patch"
+        git apply "$patch"
     done
 fi
