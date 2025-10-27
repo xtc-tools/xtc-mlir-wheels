@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 set -x
-dir="$(realpath -e "$(dirname "$0")")"
+dir="$(dirname "$(readlink -f "$0")")"
 
 # dump env
 env
@@ -48,7 +48,7 @@ if [ "$BUILD_LLVM_COMPONENTS" != "" ]; then
     COMPONENTS="-DLLVM_DISTRIBUTION_COMPONENTS=$LLVM_DISTRIBUTION_COMPONENTS"
 fi
 
-[ "$BUILD_LLVM_CLEAN_BUILD_DIR" != 1 ] || rm -rf "$BUILD_DIR"
+[ "$BUILD_LLVM_CLEAN_BUILD_DIR_POST" != 1 ] || rm -rf "$BUILD_DIR"
 rm -rf "$INSTALL_DIR" "$INSTALL_BINDINGS_DIR"
 mkdir -p "$INSTALL_DIR"
 mkdir -p "$INSTALL_BINDINGS_DIR"
@@ -105,15 +105,17 @@ if [ -z "$BUILD_LLVM_DEBUG_TARGET" ]; then
         ninja
         ninja install
     fi
-    if [ -d "$INSTALL_DIR"/lib ]; then
-        # remove useless so links
-        find "$INSTALL_DIR"/lib/ -type l -name '*.so' | xargs rm -f
-    fi
     if [ -d "$INSTALL_DIR"/python_packages ]; then
         # Move python bindings
-        mv "$INSTALL_DIR"/python_packages/mlir_core/mlir "$INSTALL_BINDINGS_DIR"/
+        cp -R "$INSTALL_DIR"/python_packages/mlir_core/mlir "$INSTALL_BINDINGS_DIR"/
+
         rm -rf "$INSTALL_DIR"/python_packages
-        cp -a "$INSTALL_DIR"/lib/libLLVM.so "$INSTALL_BINDINGS_DIR"/mlir/_mlir_libs/
+        if [ -f "$INSTALL_DIR"/lib/libLLVM.so ]; then
+            cp -a "$INSTALL_DIR"/lib/libLLVM.so "$INSTALL_BINDINGS_DIR"/mlir/_mlir_libs/
+        fi
+        if [ -f "$INSTALL_DIR"/lib/libLLVM.dylib ]; then
+            cp -a "$INSTALL_DIR"/lib/libLLVM.dylib "$INSTALL_BINDINGS_DIR"/mlir/_mlir_libs/
+        fi
     fi
 else
     ninja $BUILD_LLVM_DEBUG_TARGET
