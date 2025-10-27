@@ -50,7 +50,7 @@ macos:
     BUILD_PLATFORM: "darwin"
   stage: build
   script:
-    - python -m pip install -r requirements.txt
+    - python3 -m pip install -r requirements.txt
     - ./checkout-llvm.sh
     - ./build-wheels.sh
     - twine upload --repository-url $REPOSITORY_URL --skip-existing wheelhouse/*.whl
@@ -65,7 +65,7 @@ macos-bindings:
     BUILD_PLATFORM: "darwin"
   stage: build
   script:
-    - python -m pip install -r requirements.txt
+    - python3 -m pip install -r requirements.txt
     - ./checkout-llvm.sh
     - ./build-wheels-bindings.sh
     - twine upload --repository-url $REPOSITORY_URL --skip-existing wheelhouse/*.whl
