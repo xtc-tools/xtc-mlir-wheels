@@ -34,7 +34,7 @@ linux-bindings:
     - env
     - python --version
     - pip list
-    - curl -sSL https://get.docker.com/ | sh   
+    - curl -sSL https://get.docker.com/ | sh
     - python -m pip install -r requirements.txt
     - ./checkout-llvm.sh
     - ./build-wheels-bindings.sh
@@ -52,6 +52,7 @@ macos:
   script:
     - python3 -m venv .venv
     - source .venv/bin/activate
+    - python3 -m pip install -r requirements.txt
     - ./checkout-llvm.sh
     - ./build-wheels.sh
     - twine upload --repository-url $REPOSITORY_URL --skip-existing wheelhouse/*.whl
@@ -68,6 +69,7 @@ macos-bindings:
   script:
     - python3 -m venv .venv
     - source .venv/bin/activate
+    - python3 -m pip install -r requirements.txt
     - ./checkout-llvm.sh
     - ./build-wheels-bindings.sh
     - twine upload --repository-url $REPOSITORY_URL --skip-existing wheelhouse/*.whl
