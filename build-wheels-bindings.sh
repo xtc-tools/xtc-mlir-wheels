@@ -24,7 +24,7 @@ CIBW_ENVIRONMENT_PASS=""
 CIBW_PROJECT_REQUIRES_PYTHON='>=3.10'
 CIBW_TEST_COMMAND='{package}/test-installed.sh'
 CIBW_BEFORE_BUILD='rm -rf python_bindings/mlir python_bindings/dist python_bindings/build python_bindings/*egg-info && env BUILD_LLVM_COMPONENTS=mlir_bindings BUILD_LLVM_MLIR_BINDINGS=1 BUILD_LLVM_TOOLS=0 ./build-mlir-bindings.sh && mv install-bindings/mlir python_bindings/'
-CIBW_BEFORE_ALL='./install-build-tools.sh && ./update-ccache-from-host.sh'
+CIBW_BEFORE_ALL="env BUILD_PLATFORM=$BUILD_PLATFORM ./install-build-tools.sh && ./update-ccache-from-host.sh"
 
 if [ "$BUILD_PLATFORM" = "linux" ]; then
     CIBW_CONTAINER_ENGINE_ARG="CIBW_CONTAINER_ENGINE=docker"
