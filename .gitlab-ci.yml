@@ -3,26 +3,18 @@ variables:
   TWINE_PASSWORD: $CI_JOB_TOKEN
   REPOSITORY_URL: $CI_API_V4_URL/projects/$CI_PROJECT_ID/packages/pypi
 
-default:
+linux:
   image: python:3.12
-  # Use pinocchio to speedup builds
   tags:
     - pinocchio-docker
-  # # Allocate large shared (4xCPU 8GB)
-  # tags:
-  #   - ci.inria.fr
-  #   - large
-  before_script:
+  stage: build
+  script:
     - df -h .
     - free -h
     - env
     - python --version
     - pip list
     - curl -sSL https://get.docker.com/ | sh
-
-linux:
-  stage: build
-  script:
     - python -m pip install -r requirements.txt
     - ./checkout-llvm.sh
     - ./build-wheels.sh
@@ -32,8 +24,17 @@ linux:
       - wheelhouse/
 
 linux-bindings:
+  image: python:3.12
+  tags:
+    - pinocchio-docker
   stage: build
   script:
+    - df -h .
+    - free -h
+    - env
+    - python --version
+    - pip list
+    - curl -sSL https://get.docker.com/ | sh   
     - python -m pip install -r requirements.txt
     - ./checkout-llvm.sh
     - ./build-wheels-bindings.sh
