@@ -49,7 +49,8 @@ ENV_VARS=(
     CIBW_BEFORE_ALL="$CIBW_BEFORE_ALL"
     CIBW_BEFORE_BUILD="$CIBW_BEFORE_BUILD"
     CIBW_TEST_COMMAND="$CIBW_TEST_COMMAND"
-    CIBW_REPAIR_WHEEL_COMMAND_MACOS="DYLD_LIBRARY_PATH=$dir/python_bindings/mlir/_mlir_libs/ delocate-listdeps {wheel} && DYLD_LIBRARY_PATH=$dir/python_bindings/mlir/_mlir_libs/ delocate-wheel --require-archs {delocate_archs} -w {dest_dir} {wheel}"
+    CIBW_BEFORE_TEST="./install-llvm.sh"
+    CIBW_REPAIR_WHEEL_COMMAND_MACOS="pip install wheel && python mac-os-wheels-fixer.py --original {wheel} --output {dest_dir}"
     BUILD_LLVM_REVISION="$BUILD_LLVM_REVISION"
     BUILD_LLVM_CLEAN_BUILD_DIR="$BUILD_LLVM_CLEAN_BUILD_DIR" \
     CIBW_ENVIRONMENT_PASS_LINUX="BUILD_LLVM_CLEAN_BUILD_DIR BUILD_LLVM_REVISION" \
