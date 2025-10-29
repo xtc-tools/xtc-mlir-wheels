@@ -1,0 +1,44 @@
+From 7ee072a2bf325e189e13f0e605cd9c0fb4d2619f Mon Sep 17 00:00:00 2001
+From: Christophe Guillon <christophe.guillon@inria.fr>
+Date: Wed, 29 Oct 2025 18:44:08 +0100
+Subject: [PATCH] Revert removal of scalar gen load in LowerVectorTransfer
+
+Scalar load generation as a work around to non-handled 0-D vector lowering
+was removed.
+Unfortunately it impairs some codegen, reactivate it for now.
+---
+ .../Vector/Transforms/LowerVectorTransfer.cpp  | 18 ++++++++++++++++++
+ 1 file changed, 18 insertions(+)
+
+diff --git a/mlir/lib/Dialect/Vector/Transforms/LowerVectorTransfer.cpp b/mlir/lib/Dialect/Vector/Transforms/LowerVectorTransfer.cpp
+index fb040bc51a99..b5d129fe63d7 100644
+--- a/mlir/lib/Dialect/Vector/Transforms/LowerVectorTransfer.cpp
++++ b/mlir/lib/Dialect/Vector/Transforms/LowerVectorTransfer.cpp
+@@ -355,6 +355,24 @@ struct TransferOpReduceRank
+           op, "map is not a minor identity with broadcasting");
+     }
+ 
++    // TODO: support zero-dimension vectors natively.  See:
++    // https://llvm.discourse.group/t/should-we-have-0-d-vectors/3097.
++    // In the meantime, lower these to a scalar load when they pop up.
++    if (reducedShapeRank == 0) {
++      Value newRead;
++      if (isa<TensorType>(op.getShapedType())) {
++        newRead = rewriter.create<tensor::ExtractOp>(
++            op.getLoc(), op.getBase(), op.getIndices());
++      } else {
++        newRead = rewriter.create<memref::LoadOp>(
++            op.getLoc(), originalVecType.getElementType(), op.getBase(),
++            op.getIndices());
++      }
++      return rewriter
++          .create<vector::BroadcastOp>(op.getLoc(), originalVecType, newRead)
++          .getVector();
++    }
++
+     SmallVector<int64_t> newShape(
+         originalVecType.getShape().take_back(reducedShapeRank));
+     SmallVector<bool> newScalableDims(
+-- 
+2.30.2
+
