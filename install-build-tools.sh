@@ -9,6 +9,9 @@ CCACHE_URL="https://github.com/ccache/ccache/releases/download/v$CCACHE_VERSION/
 NINJA_VERSION=1.12.1
 NINJA_URL="https://github.com/ninja-build/ninja/releases/download/v$NINJA_VERSION/ninja-linux.zip"
 
+CUDA_VERSION=12-9
+CUDA_URL="https://developer.download.nvidia.com/compute/cuda/repos/rhel8/x86_64/cuda-rhel8.repo"
+
 mkdir -p "$INSTALL_PREFIX/bin"
 mkdir tmp.ninja
 cd tmp.ninja
@@ -26,3 +29,10 @@ tar xvJf ccache.tar.xz
 cd ..
 cp tmp.ccache/ccache*/ccache "$INSTALL_PREFIX/bin"
 rm -rf tmp.ccache
+
+dnf config-manager --add-repo "${CUDA_URL}"
+dnf -y install cuda-compiler-${CUDA_VERSION}.x86_64 \
+               cuda-libraries-${CUDA_VERSION}.x86_64 \
+               cuda-libraries-devel-${CUDA_VERSION}.x86_64
+dnf clean all
+
