@@ -1,0 +1,5 @@
+recursive-include install/bin *
+recursive-include install/lib *
+recursive-include install/include *
+recursive-include install/share *
+recursive-include install/src *
