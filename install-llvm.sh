@@ -3,7 +3,7 @@ set -euo pipefail
 set -x
 dir="$(dirname "$(readlink -f "$0")")"
 
-LLVM_VERSION=19.1.7.2025011201+cd708029
+LLVM_VERSION=19.1.7.2025011201+cd708029rev1
 
 python -m pip install \
         "llvm==$LLVM_VERSION" \
