@@ -2,20 +2,53 @@ variables:
   TWINE_USERNAME: gitlab-ci-token
   TWINE_PASSWORD: $CI_JOB_TOKEN
   REPOSITORY_URL: $CI_API_V4_URL/projects/$CI_PROJECT_ID/packages/pypi
+  PUBLISH_PACKAGES:
+    description: "Publish python packages if true, forced for pipelines on tag"
+    value: "false"
+    options:
+      - "true"
+      - "false"
+  BUILD_MLIR:
+    description: "When executing manually, build tvm wheels if true"
+    value: "false"
+    options:
+      - "true"
+      - "false"
+  BUILD_MLIR_BINDINGS:
+    description: "When executing manually, build mlir bindings wheels if true"
+    value: "false"
+    options:
+      - "true"
+      - "false"
+  BUILD_LINUX:
+   description: "Build for linux"
+   value: "true"
+   options:
+     - "true"
+     - "false"
+  BUILD_MACOS:
+   description: "Build for macos"
+   value: "true"
+   options:
+     - "true"
+     - "false"
 
-linux:
+default:
+  before_script:
+    - env
+
+linux-mlir:
   image: python:3.12
   tags:
     - pinocchio-docker
+  variables:
+    BUILD_CCACHE_DIR: /cache/$CI_PROJECT_PATH_SLUG/ccache
+    BUILD_PIP_CACHE_DIR: /cache/$CI_PROJECT_PATH_SLUG/pip_cache
   stage: build
   rules:
     - if: $CI_COMMIT_TAG =~ /^mlir-v/
+    - if: $CI_PIPELINE_SOURCE == "web" && $BUILD_MLIR == "true" && $BUILD_LINUX == "true"
   script:
-    - df -h .
-    - free -h
-    - env
-    - python --version
-    - pip list
     - curl -sSL https://get.docker.com/ | sh
     - python -m pip install -r requirements.txt
     - ./checkout-llvm.sh
@@ -25,19 +58,18 @@ linux:
     paths:
       - wheelhouse/
 
-linux-bindings:
+linux-mlir-bindings:
   image: python:3.12
   tags:
     - pinocchio-docker
+  variables:
+    BUILD_CCACHE_DIR: /cache/$CI_PROJECT_PATH_SLUG/ccache
+    BUILD_PIP_CACHE_DIR: /cache/$CI_PROJECT_PATH_SLUG/pip_cache
   stage: build
   rules:
     - if: $CI_COMMIT_TAG =~ /^mlir-v/
+    - if: $CI_PIPELINE_SOURCE == "web" && $BUILD_MLIR_BINDINGS == "true" && $BUILD_LINUX == "true"
   script:
-    - df -h .
-    - free -h
-    - env
-    - python --version
-    - pip list
     - curl -sSL https://get.docker.com/ | sh
     - python -m pip install -r requirements.txt
     - ./checkout-llvm.sh
@@ -47,7 +79,7 @@ linux-bindings:
     paths:
       - wheelhouse/
 
-macos:
+macos-mlir:
   tags:
     - macos-baremetal-applem4
   variables:
@@ -55,6 +87,7 @@ macos:
   stage: build
   rules:
     - if: $CI_COMMIT_TAG =~ /^mlir-v/
+    - if: $CI_PIPELINE_SOURCE == "web" && $BUILD_MLIR == "true" && $BUILD_MACOS == "true"
   script:
     - export PATH="/opt/homebrew/bin:$PATH" 
     - python3.12 -m venv .venv
@@ -67,7 +100,7 @@ macos:
     paths:
       - wheelhouse/
 
-macos-bindings:
+macos-mlir-bindings:
   tags:
     - macos-baremetal-applem4
   variables:
@@ -75,6 +108,7 @@ macos-bindings:
   stage: build
   rules:
     - if: $CI_COMMIT_TAG =~ /^mlir-v/
+    - if: $CI_PIPELINE_SOURCE == "web" && $BUILD_MLIR_BINDINGS == "true" && $BUILD_MACOS == "true"
   script:
     - export PATH="/opt/homebrew/bin:$PATH" 
     - python3.12 -m venv .venv

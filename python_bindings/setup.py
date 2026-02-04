@@ -35,9 +35,6 @@ if __name__ == "__main__":
         cmdclass={
             "bdist_wheel": CBdistWheel,
         },
-        install_requires=[
-            f"llvm==19.1.7.2025011201+cd708029rev1",
-        ],
         setup_requires = [
             "setuptools>=69",
         ],
