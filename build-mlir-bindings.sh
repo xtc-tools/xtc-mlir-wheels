@@ -1,14 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 set -x
-dir="$(realpath -e "$(dirname "$0")")"
+dir="$(dirname "$(readlink -f "$0")")"
 
 # dump env
-env
+env | sort
 
-# source Cuda toolkit
-export PATH=${PATH}:/usr/local/cuda/bin
-export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/cuda/lib64
+# Dump ccache
+ccache -sv
 
 BUILD_DIR="${1-llvm-project/build}"
 INSTALL_DIR="${2-$dir/install}"
@@ -20,8 +19,18 @@ BUILD_LLVM_CLEAN_BUILD_DIR_POST="${BUILD_LLVM_CLEAN_BUILD_DIR_POST:-0}"
 BUILD_LLVM_CCACHE="${BUILD_LLVM_CCACHE:-1}"
 BUILD_LLVM_MLIR_BINDINGS="${BUILD_LLVM_MLIR_BINDINGS:-0}"
 BUILD_LLVM_TOOLS="${BUILD_LLVM_TOOLS:-1}"
-LLVM_TARGETS_TO_BUILD="${LLVM_TARGETS_TO_BUILD-AArch64;ARM;X86;NVPTX}"
+LLVM_TARGETS_TO_BUILD="${LLVM_TARGETS_TO_BUILD-AArch64;ARM;X86}"
 BUILD_LLVM_COMPONENTS="${BUILD_LLVM_COMPONENTS-}"
+
+BUILD_TARGET_NVPTX="${BUILD_TARGET_NVPTX:-1}"
+MLIR_CUDA_OPTIONS=""
+if [ "$BUILD_TARGET_NVPTX" = 1 ]; then
+    # source Cuda toolkit
+    export PATH=${PATH}:/usr/local/cuda/bin
+    export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/cuda/lib64
+    LLVM_TARGETS_TO_BUILD="$LLVM_TARGETS_TO_BUILD;NVPTX"
+    MLIR_CUDA_OPTIONS="-DMLIR_ENABLE_CUDA_RUNNER=ON -DMLIR_NVVM_EMBED_LIBDEVICE=ON"
+fi
 
 LLVM_BUILD_TYPE="Release" # "MinSizeRel"
 
@@ -80,6 +89,8 @@ cmake \
     -DLLVM_BUILD_EXAMPLES=OFF \
     -DLLVM_INCLUDE_TESTS=OFF \
     -DLLVM_BUILD_TESTS=OFF \
+    -DLLVM_ENABLE_ZLIB=OFF \
+    -DLLVM_ENABLE_ZSTD=OFF \
     -DLLVM_INCLUDE_DOCS=OFF \
     -DLLVM_BUILD_DOCS=OFF \
     -DLLVM_BUILD_LLVM_DYLIB=ON \
@@ -89,8 +100,7 @@ cmake \
     -DMLIR_BUILD_MLIR_C_DYLIB=ON \
     -DMLIR_ENABLE_EXECUTION_ENGINE=ON \
     -DMLIR_ENABLE_SPIRV_CPU_RUNNER=ON \
-    -DMLIR_ENABLE_CUDA_RUNNER=ON \
-    -DMLIR_NVVM_EMBED_LIBDEVICE=ON \
+    $MLIR_CUDA_OPTIONS \
     $MLIR_TOOLS \
     $MLIR_BINDINGS \
     $COMPONENTS \
@@ -116,10 +126,11 @@ if [ -z "$BUILD_LLVM_DEBUG_TARGET" ]; then
         find "$INSTALL_DIR"/lib/ -type l -name '*.so' | xargs rm -f
     fi
     if [ -d "$INSTALL_DIR"/python_packages ]; then
-        # Move python bindings
-        mv "$INSTALL_DIR"/python_packages/mlir_core/mlir "$INSTALL_BINDINGS_DIR"/
+        # Copy python bindings
+        cp -a "$INSTALL_DIR"/python_packages/mlir_core/mlir "$INSTALL_BINDINGS_DIR"/
         rm -rf "$INSTALL_DIR"/python_packages
-        cp -a "$INSTALL_DIR"/lib/libLLVM.so "$INSTALL_BINDINGS_DIR"/mlir/_mlir_libs/
+        ! [ -f "$INSTALL_DIR"/lib/libLLVM.so ] || cp -a "$INSTALL_DIR"/lib/libLLVM.so "$INSTALL_BINDINGS_DIR"/mlir/_mlir_libs/
+        ! [ -f "$INSTALL_DIR"/lib/libLLVM.dylib ] || cp -a "$INSTALL_DIR"/lib/libLLVM.dylib "$INSTALL_BINDINGS_DIR"/mlir/_mlir_libs/
     fi
 else
     ninja $BUILD_LLVM_DEBUG_TARGET

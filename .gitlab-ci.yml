@@ -2,7 +2,6 @@ variables:
   TWINE_USERNAME: gitlab-ci-token
   TWINE_PASSWORD: $CI_JOB_TOKEN
   REPOSITORY_URL: $CI_API_V4_URL/projects/$CI_PROJECT_ID/packages/pypi
-  BUILD_CCACHE_DIR: /cache/$CI_PROJECT_PATH_SLUG/ccache
   PUBLISH_PACKAGES:
     description: "Publish python packages if true, forced for pipelines on tag"
     value: "false"
@@ -28,33 +27,37 @@ variables:
       - "true"
       - "false"
 
+  BUILD_LINUX:
+   description: "Build for linux"
+   value: "true"
+   options:
+     - "true"
+     - "false"
+  BUILD_MACOS:
+   description: "Build for macos"
+   value: "true"
+   options:
+     - "true"
+     - "false"
+
 default:
+  before_script:
+    - env
+
+linux-mlir:
   image: python:3.12
-  # Use pinocchio to speedup builds
   tags:
     - pinocchio-docker
-  # # Allocate large shared (4xCPU 8GB)
-  # tags:
-  #   - ci.inria.fr
-  #   - large
-  before_script:
-    - df -h .
-    - free -h
-    - env
-    - python --version
-    - pip list
-    - curl -sSL https://get.docker.com/ | sh
-    # Check image manifest header
-    - curl -IL https://quay.io/v2/pypa/manylinux_2_28_x86_64/manifests/2025.09.19-1
-    - curl -sSL https://quay.io/v2/pypa/manylinux_2_28_x86_64/manifests/2025.09.19-1
-
-linux-mlir-wheels:
+  variables:
+    BUILD_CCACHE_DIR: /cache/$CI_PROJECT_PATH_SLUG/ccache
+    BUILD_PIP_CACHE_DIR: /cache/$CI_PROJECT_PATH_SLUG/pip_cache
   stage: build
   rules:
     - if: $CI_COMMIT_TAG =~ /^mlir-v/
-    - if: $CI_PIPELINE_SOURCE == "web" && $BUILD_MLIR == "true"
+    - if: $CI_PIPELINE_SOURCE == "web" && $BUILD_MLIR == "true" && $BUILD_LINUX == "true"
   script:
     - test -z "${CI_COMMIT_TAG-}" || PUBLISH_PACKAGES=true
+    - curl -sSL https://get.docker.com/ | sh
     - python -m pip install -r requirements.txt
     - ./checkout-llvm.sh
     - ./build-wheels.sh
@@ -63,13 +66,20 @@ linux-mlir-wheels:
     paths:
       - wheelhouse/
 
-linux-mlir-bindings-wheels:
+linux-mlir-bindings:
+  image: python:3.12
+  tags:
+    - pinocchio-docker
+  variables:
+    BUILD_CCACHE_DIR: /cache/$CI_PROJECT_PATH_SLUG/ccache
+    BUILD_PIP_CACHE_DIR: /cache/$CI_PROJECT_PATH_SLUG/pip_cache
   stage: build
   rules:
     - if: $CI_COMMIT_TAG =~ /^mlir-python-bindings-v/
-    - if: $CI_PIPELINE_SOURCE == "web" && $BUILD_MLIR_BINDINGS == "true"
+    - if: $CI_PIPELINE_SOURCE == "web" && $BUILD_MLIR_BINDINGS == "true" && $BUILD_LINUX == "true"
   script:
     - test -z "${CI_COMMIT_TAG-}" || PUBLISH_PACKAGES=true
+    - curl -sSL https://get.docker.com/ | sh
     - python -m pip install -r requirements.txt
     - ./checkout-llvm.sh
     - ./build-wheels-bindings.sh
@@ -78,16 +88,67 @@ linux-mlir-bindings-wheels:
     paths:
       - wheelhouse/
 
-linux-mlir-dev-wheels:
+linux-mlir-dev:
+  image: python:3.12
+  tags:
+    - pinocchio-docker
+  variables:
+    BUILD_CCACHE_DIR: /cache/$CI_PROJECT_PATH_SLUG/ccache
+    BUILD_PIP_CACHE_DIR: /cache/$CI_PROJECT_PATH_SLUG/pip_cache
   stage: build
   rules:
     - if: $CI_COMMIT_TAG =~ /^mlir-dev-v/
-    - if: $CI_PIPELINE_SOURCE == "web" && $BUILD_MLIR_DEV == "true"
+    - if: $CI_PIPELINE_SOURCE == "web" && $BUILD_MLIR_DEV == "true" && $BUILD_LINUX == "true"
   script:
     - test -z "${CI_COMMIT_TAG-}" || PUBLISH_PACKAGES=true
+    - curl -sSL https://get.docker.com/ | sh
     - python -m pip install -r requirements.txt
     - ./checkout-llvm.sh
     - ./build-wheels-dev.sh
+    - test "$PUBLISH_PACKAGES" != true || env TWINE_REPOSITORY_URL="$REPOSITORY_URL" ./twine-upload.sh wheelhouse/*.whl
+  artifacts:
+    paths:
+      - wheelhouse/
+
+macos-mlir:
+  tags:
+    - macos-baremetal-applem4
+  variables:
+    BUILD_PLATFORM: "darwin"
+  stage: build
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^mlir-v/
+    - if: $CI_PIPELINE_SOURCE == "web" && $BUILD_MLIR == "true" && $BUILD_MACOS == "true"
+  script:
+    - test -z "${CI_COMMIT_TAG-}" || PUBLISH_PACKAGES=true
+    - export PATH="/opt/homebrew/bin:$PATH" 
+    - python3.12 -m venv .venv
+    - source .venv/bin/activate
+    - python3 -m pip install -r requirements.txt
+    - ./checkout-llvm.sh
+    - ./build-wheels.sh
+    - test "$PUBLISH_PACKAGES" != true || env TWINE_REPOSITORY_URL="$REPOSITORY_URL" ./twine-upload.sh wheelhouse/*.whl
+  artifacts:
+    paths:
+      - wheelhouse/
+
+macos-mlir-bindings:
+  tags:
+    - macos-baremetal-applem4
+  variables:
+    BUILD_PLATFORM: "darwin"
+  stage: build
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^mlir-python-bindings-v/
+    - if: $CI_PIPELINE_SOURCE == "web" && $BUILD_MLIR_BINDINGS == "true" && $BUILD_MACOS == "true"
+  script:
+    - test -z "${CI_COMMIT_TAG-}" || PUBLISH_PACKAGES=true
+    - export PATH="/opt/homebrew/bin:$PATH" 
+    - python3.12 -m venv .venv
+    - source .venv/bin/activate
+    - python3 -m pip install -r requirements.txt
+    - ./checkout-llvm.sh
+    - ./build-wheels-bindings.sh
     - test "$PUBLISH_PACKAGES" != true || env TWINE_REPOSITORY_URL="$REPOSITORY_URL" ./twine-upload.sh wheelhouse/*.whl
   artifacts:
     paths:

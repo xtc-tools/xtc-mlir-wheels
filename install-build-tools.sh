@@ -2,6 +2,9 @@
 set -euo pipefail
 set -x
 
+# suppose already installed on MacOS
+[ "$BUILD_PLATFORM" != "darwin" ] || exit 0
+
 INSTALL_PREFIX="${INSTALL_PREFIX:-/usr/local}"
 CCACHE_VERSION=4.10.2
 CCACHE_URL="https://github.com/ccache/ccache/releases/download/v$CCACHE_VERSION/ccache-$CCACHE_VERSION-linux-x86_64.tar.xz"
@@ -9,6 +12,7 @@ CCACHE_URL="https://github.com/ccache/ccache/releases/download/v$CCACHE_VERSION/
 NINJA_VERSION=1.12.1
 NINJA_URL="https://github.com/ninja-build/ninja/releases/download/v$NINJA_VERSION/ninja-linux.zip"
 
+BUILD_TARGET_NVPTX="${BUILD_TARGET_NVPTX:-1}"
 CUDA_VERSION=12-9
 CUDA_URL="https://developer.download.nvidia.com/compute/cuda/repos/rhel8/x86_64/cuda-rhel8.repo"
 
@@ -30,9 +34,11 @@ cd ..
 cp tmp.ccache/ccache*/ccache "$INSTALL_PREFIX/bin"
 rm -rf tmp.ccache
 
-dnf config-manager --add-repo "${CUDA_URL}"
-dnf -y install cuda-compiler-${CUDA_VERSION}.x86_64 \
-               cuda-libraries-${CUDA_VERSION}.x86_64 \
-               cuda-libraries-devel-${CUDA_VERSION}.x86_64
-dnf clean all
+if [ "$BUILD_TARGET_NVPTX" = 1 ]; then
+    dnf config-manager --add-repo "${CUDA_URL}"
+    dnf -y install cuda-compiler-${CUDA_VERSION}.x86_64 \
+        cuda-libraries-${CUDA_VERSION}.x86_64 \
+        cuda-libraries-devel-${CUDA_VERSION}.x86_64
+    dnf clean all
+fi
 
