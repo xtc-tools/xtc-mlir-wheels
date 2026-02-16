@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 set -x
-dir="$(realpath -e "$(dirname "$0")")"
+dir="$(dirname "$(readlink -f "$0")")"
 
 HOST_CCACHE_DIR="ccache"
 if [ -d "$HOST_CCACHE_DIR" ]; then
@@ -9,4 +9,3 @@ if [ -d "$HOST_CCACHE_DIR" ]; then
     mkdir -p /root/.cache
     cp -pr "$HOST_CCACHE_DIR" /root/.cache/ccache
 fi
-

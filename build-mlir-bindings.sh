@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 set -x
-dir="$(realpath -e "$(dirname "$0")")"
+dir="$(dirname "$(readlink -f "$0")")"
 
 # dump env
 env
@@ -75,6 +75,8 @@ cmake \
     -DLLVM_BUILD_EXAMPLES=OFF \
     -DLLVM_INCLUDE_TESTS=OFF \
     -DLLVM_BUILD_TESTS=OFF \
+    -DLLVM_ENABLE_ZLIB=OFF \
+    -DLLVM_ENABLE_ZSTD=OFF \
     -DLLVM_INCLUDE_DOCS=OFF \
     -DLLVM_BUILD_DOCS=OFF \
     -DLLVM_BUILD_LLVM_DYLIB=ON \
@@ -111,9 +113,15 @@ if [ -z "$BUILD_LLVM_DEBUG_TARGET" ]; then
     fi
     if [ -d "$INSTALL_DIR"/python_packages ]; then
         # Move python bindings
-        mv "$INSTALL_DIR"/python_packages/mlir_core/mlir "$INSTALL_BINDINGS_DIR"/
+        cp -R "$INSTALL_DIR"/python_packages/mlir_core/mlir "$INSTALL_BINDINGS_DIR"/
+
         rm -rf "$INSTALL_DIR"/python_packages
-        cp -a "$INSTALL_DIR"/lib/libLLVM.so "$INSTALL_BINDINGS_DIR"/mlir/_mlir_libs/
+        if [ -f "$INSTALL_DIR"/lib/libLLVM.so ]; then
+            cp -a "$INSTALL_DIR"/lib/libLLVM.so "$INSTALL_BINDINGS_DIR"/mlir/_mlir_libs/
+        fi
+        if [ -f "$INSTALL_DIR"/lib/libLLVM.dylib ]; then
+            cp -a "$INSTALL_DIR"/lib/libLLVM.dylib "$INSTALL_BINDINGS_DIR"/mlir/_mlir_libs/
+        fi
     fi
 else
     ninja $BUILD_LLVM_DEBUG_TARGET

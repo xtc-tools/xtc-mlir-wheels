@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 set -x
-dir="$(realpath -e "$(dirname "$0")")"
+dir="$(dirname "$(readlink -f "$0")")"
 
 LLVM_REVISION="$(cat "$dir"/llvm_revision.txt)"
 
@@ -16,6 +16,6 @@ git submodule update --recursive --depth 1
 
 if [ -d "$dir"/patches/llvm ]; then
     for patch in "$dir"/patches/llvm/*.patch; do
-        patch -p1 <"$patch"
+        git apply "$patch"
     done
 fi
