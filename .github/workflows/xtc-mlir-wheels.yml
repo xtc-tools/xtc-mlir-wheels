@@ -1,0 +1,111 @@
+name: XTC MLIR tools and Python bindings wheels build
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-14]
+        pkg: [tools]
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.12
+          cache: pip
+      - name: Display Python version
+        run: |
+          python -c "import sys; print(sys.version)"
+          pip list
+      - name: Install Dependencies
+        run: |
+          pip install -r requirements.txt
+      - name: PIP Cache
+        uses: actions/cache@v4
+        with:
+          path: ~/pip_cache
+          key: ${{ runner.os }}-pip-cache-${{ github.run_id }}
+          restore-keys: ${{ runner.os }}-pip-cache
+      - name: CCache Cache
+        uses: actions/cache@v4
+        with:
+          path: ~/ccache
+          key: ${{ runner.os }}-ccache-${{ github.run_id }}
+          restore-keys: ${{ runner.os }}-ccache
+      - name: Checkout LLVM
+        run: |
+          ./checkout-llvm.sh
+      - name: Install macOS Brew Packages
+        if: runner.os == 'macOS'
+        run: |
+          brew install ccache
+      - name: Build Wheels
+        run: |
+          export BUILD_PIP_CACHE_DIR=$HOME/pip_cache
+          export BUILD_CCACHE_DIR=$HOME/ccache
+          ./build-wheels-${{ matrix.pkg }}.sh
+      - name: Store distribution packages
+        uses: actions/upload-artifact@v5
+        with:
+          name: python-package-xtc-mlir-${{ matrix.pkg }}-${{ runner.os }}
+          path: wheelhouse/
+
+  publish-to-testpypi:
+    needs: [build]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [Linux, macOS]
+        pkg: [tools]
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/xtc-mlir-${{ matrix.pkg }}
+    permissions:
+      id-token: write  # IMPORTANT: mandatory for trusted publishing
+    steps:
+    - name: Download all the dists
+      uses: actions/download-artifact@v6
+      with:
+        name: python-package-xtc-mlir-${{ matrix.pkg }}-${{ matrix.os }}
+        path: dist/
+    - name: Publish distribution to Test PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        repository-url: https://test.pypi.org/legacy/
+        verbose: true
+        skip-existing: true
+
+  publish-to-pypi:
+    if: startsWith(github.ref, 'refs/tags/mlir-v')  # only publish to PyPI on tag pushes
+    needs: [build]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [Linux, macOS]
+        pkg: [tools]
+    environment:
+      name: pypi
+      url: https://pypi.org/p/xtc-mlir-${{ matrix.pkg }}
+    permissions:
+      id-token: write  # IMPORTANT: mandatory for trusted publishing
+    steps:
+    - name: Download all the dists
+      uses: actions/download-artifact@v6
+      with:
+        name: python-package-xtc-mlir-${{ matrix.pkg }}-${{ matrix.os }}
+        path: dist/
+    - name: Publish distribution to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        verbose: true
