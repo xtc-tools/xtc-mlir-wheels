@@ -5,9 +5,9 @@ dir="$(dirname "$(readlink -f "$0")")"
 
 cd "$dir"
 
-BUILD_PLATFORM="${BUILD_PLATFORM:-linux}"
+BUILD_PLATFORM="${BUILD_PLATFORM:-$(uname -s | tr '[:upper:]' '[:lower:]')}"
+BUILD_PACKAGE="${BUILD_PACKAGE:-mlir-tools}"
 
-BUILD_BINDINGS="${BUILD_BINDINGS-}"
 
 CIBW_PLATFORM="linux"
 CIBW_ARCHS="x86_64"
@@ -29,10 +29,10 @@ CIBW_BEFORE_BUILD="rm -rf dist build *egg-info"
 CIBW_TEST_COMMAND="{package}/test-installed.sh"
 CIBW_BEFORE_ALL="./install-build-tools.sh && env BUILD_LLVM_MLIR_BINDINGS=0 BUILD_LLVM_TOOLS=1 BUILD_LLVM_COMPONENTS=$BUILD_LLVM_COMPONENTS ./build-mlir-bindings.sh"
 
-if [ "$BUILD_BINDINGS" ]; then
+if [ "$BUILD_PACKAGE" = "mlir-python-bindings" ]; then
     CIBW_BUILD="cp310-manylinux* cp311-manylinux* cp312-manylinux* cp313-manylinux* cp314-manylinux*"
     CIBW_BEFORE_ALL="./install-build-tools.sh"
-    CIBW_BEFORE_BUILD="rm -rf python_bindings/mlir python_bindings/dist python_bindings/build python_bindings/*egg-info && env BUILD_LLVM_COMPONENTS=mlir_bindings BUILD_LLVM_MLIR_BINDINGS=1 BUILD_LLVM_TOOLS=0 ./build-mlir-bindings.sh && mv install-bindings/mlir python_bindings/"
+    CIBW_BEFORE_BUILD="rm -rf python_bindings/mlir python_bindings/dist python_bindings/build python_bindings/*egg-info && env BUILD_LLVM_COMPONENTS=mlir_bindings BUILD_LLVM_MLIR_BINDINGS=1 BUILD_LLVM_TOOLS=0 ./build-mlir-bindings.sh"
 fi
 
 CIBW_BEFORE_TEST=""
@@ -56,7 +56,7 @@ elif [ "$BUILD_PLATFORM" = "darwin" ]; then
     CIBW_PLATFORM="macos"
     CIBW_ARCHS="arm64"
     CIBW_BUILD="cp310-*"
-    [ -z "$BUILD_BINDINGS" ] || CIBW_BUILD="cp310-macosx_arm64 cp311-macosx_arm64 cp312-macosx_arm64 cp313-macosx_arm64 cp314-macosx_arm64"
+    [ "$BUILD_PACKAGE" != "mlir-python-bindings" ] || CIBW_BUILD="cp310-macosx_arm64 cp311-macosx_arm64 cp312-macosx_arm64 cp313-macosx_arm64 cp314-macosx_arm64"
     CIBW_MANYLINUX_IMAGE="" 
     MACOSX_DEPLOYMENT_ARGS="MACOSX_DEPLOYMENT_TARGET=14.0" # supports macos14+
     CIBW_BEFORE_TEST="./install-llvm.sh"
@@ -91,10 +91,7 @@ ENV_VARS=(
 [ -z "$CONTAINER_ENGINE_ARG" ] || ENV_VARS+=("$CONTAINER_ENGINE_ARG")
 [ -z "$MACOSX_DEPLOYMENT_ARGS" ] || ENV_VARS+=("$MACOSX_DEPLOYMENT_ARGS")
 
-TARGET=.
-[ -z "$BUILD_BINDINGS" ] || TARGET=python_bindings
-
 env "${ENV_VARS[@]}" \
      cibuildwheel \
-     $TARGET
+     "$BUILD_PACKAGE"
 

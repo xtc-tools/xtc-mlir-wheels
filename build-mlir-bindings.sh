@@ -10,8 +10,8 @@ env | sort
 ccache -sv
 
 BUILD_DIR="${1-llvm-project/build}"
-INSTALL_DIR="${2-$dir/install}"
-INSTALL_BINDINGS_DIR="${3-$dir/install-bindings}"
+INSTALL_DIR="${2-$dir/mlir-tools/install}"
+INSTALL_BINDINGS_DIR="${3-$dir/mlir-python-bindings/install}"
 
 BUILD_LLVM_DEBUG_TARGET="${BUILD_LLVM_DEBUG_TARGET:-}"
 BUILD_LLVM_CLEAN_BUILD_DIR="${BUILD_LLVM_CLEAN_BUILD_DIR:-1}"
