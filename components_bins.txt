@@ -1,8 +1,0 @@
-llvm-config
-llvm-libraries
-opt
-llc
-mlir-libraries
-mlir-opt
-mlir-cpu-runner
-mlir-translate

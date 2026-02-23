@@ -1,3 +1,0 @@
---index-url https://gitlab.inria.fr/api/v4/projects/57869/packages/pypi/simple
-mlir~=19.1.0
-mlir-python-bindings~=19.1.0
