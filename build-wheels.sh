@@ -31,7 +31,7 @@ BUILD_PYTHON=python
 CIBW_BEFORE_ALL="env PYTHON=$BUILD_PYTHON sh -c './install-build-tools.sh && ./install-llvm.sh && env BUILD_LLVM_MLIR_BINDINGS=0 ./build-mlir.sh'"
 
 if [ "$BUILD_PACKAGE" = "mlir-python-bindings" ]; then
-    CIBW_BUILD="cp312-manylinux*" # "cp310-manylinux* cp311-manylinux* cp312-manylinux* cp313-manylinux* cp314-manylinux*"
+    CIBW_BUILD="cp310-manylinux* cp311-manylinux* cp312-manylinux* cp313-manylinux* cp314-manylinux*"
     CIBW_BEFORE_ALL="./install-build-tools.sh"
     CIBW_BEFORE_BUILD="rm -rf mlir-python-bindings/mlir mlir-python-bindings/dist mlir-python-bindings/build mlir-python-bindings/*egg-info && ./install-llvm.sh && env BUILD_LLVM_MLIR_BINDINGS=1 ./build-mlir.sh"
 fi
