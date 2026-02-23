@@ -31,8 +31,8 @@ BUILD_PYTHON=python
 CIBW_BEFORE_ALL="env PYTHON=$BUILD_PYTHON sh -c './install-build-tools.sh && ./install-llvm.sh && env BUILD_LLVM_MLIR_BINDINGS=0 ./build-mlir.sh'"
 
 if [ "$BUILD_PACKAGE" = "mlir-python-bindings" ]; then
-    CIBW_BUILD="cp310-manylinux* cp311-manylinux* cp312-manylinux* cp313-manylinux* cp314-manylinux*"
-    CIBW_BEFORE_ALL="./install-build-tools.sh && ./install-llvm.sh"
+    CIBW_BUILD="cp312-manylinux*" # "cp310-manylinux* cp311-manylinux* cp312-manylinux* cp313-manylinux* cp314-manylinux*"
+    CIBW_BEFORE_ALL="./install-build-tools.sh"
     CIBW_BEFORE_BUILD="rm -rf mlir-python-bindings/mlir mlir-python-bindings/dist mlir-python-bindings/build mlir-python-bindings/*egg-info && ./install-llvm.sh && env BUILD_LLVM_MLIR_BINDINGS=1 ./build-mlir.sh"
 fi
 
@@ -75,7 +75,7 @@ ENV_VARS=(
     CIBW_BEFORE_BUILD="$CIBW_BEFORE_BUILD"
     CIBW_BEFORE_TEST="$CIBW_BEFORE_TEST"
     CIBW_REPAIR_WHEEL_COMMAND_MACOS="pip install wheel && python mac-os-wheels-fixer.py --original {wheel} --output {dest_dir}"
-    CIBW_REPAIR_WHEEL_COMMAND_LINUX="auditwheel repair --exclude 'libcuda.so.*' -w {dest_dir} {wheel}" \
+    CIBW_REPAIR_WHEEL_COMMAND_LINUX="auditwheel repair --exclude 'libcuda.so.*'  --exclude 'libLLVM.so' -w {dest_dir} {wheel}" \
     CIBW_TEST_COMMAND="$CIBW_TEST_COMMAND"
     BUILD_PLATFORM="$BUILD_PLATFORM"
     PIP_CACHE_DIR="$BUILD_PIP_CACHE_DIR"

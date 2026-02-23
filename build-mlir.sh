@@ -12,6 +12,7 @@ ccache -sv
 BUILD_DIR="${1-llvm-project/mlir/build}"
 INSTALL_DIR="${2-$dir/mlir-tools/install}"
 INSTALL_BINDINGS_DIR="${3-$dir/mlir-python-bindings/install}"
+INSTALL_DEV_DIR="${3-$dir/mlir-dev/install}"
 
 BUILD_LLVM_CLEAN_BUILD_DIR="${BUILD_LLVM_CLEAN_BUILD_DIR:-1}"
 BUILD_LLVM_CLEAN_BUILD_DIR_POST="${BUILD_LLVM_CLEAN_BUILD_DIR_POST:-0}"
@@ -41,9 +42,10 @@ else
 fi
 
 [ "$BUILD_LLVM_CLEAN_BUILD_DIR" != 1 ] || rm -rf "$BUILD_DIR"
-rm -rf "$INSTALL_DIR" "$INSTALL_BINDINGS_DIR"
+rm -rf "$INSTALL_DIR" "$INSTALL_BINDINGS_DIR" "$INSTALL_DEV_DIR"
 mkdir -p "$INSTALL_DIR"
 mkdir -p "$INSTALL_BINDINGS_DIR"
+mkdir -p "$INSTALL_DEV_DIR"
 mkdir -p "$BUILD_DIR"
 
 cd "$BUILD_DIR"
@@ -59,6 +61,7 @@ LLVM_PREFIX="$("$PYTHON" -c 'import llvm;print(llvm.__path__[0])')"
 cmake \
     -DLLVM_DIR="$LLVM_PREFIX"/lib/cmake/llvm \
     -DCMAKE_INSTALL_PREFIX="$INSTALL_DIR" \
+    -DCMAKE_INSTALL_RPATH='$ORIGIN:$ORIGIN/../lib:$ORIGIN/../../llvm/lib' \
     -DCMAKE_BUILD_TYPE="$LLVM_BUILD_TYPE" \
     -DLLVM_ENABLE_ASSERTIONS=ON \
     -DLLVM_ENABLE_WARNINGS=OFF \
@@ -87,17 +90,25 @@ cmake \
 ninja
 ninja install
 
-#if [ -d "$INSTALL_DIR"/lib ]; then
-#    # remove useless so links
-#    find "$INSTALL_DIR"/lib/ -type l -name '*.so' | xargs rm -f
-#fi
+if [ -d "$INSTALL_DIR"/lib ]; then
+    # remove useless so links
+    find "$INSTALL_DIR"/lib/ -type l -name '*.so' | xargs rm -f
+    find "$INSTALL_DIR"/lib/ -type l -name '*.dylib' | xargs rm -f
+fi
+
+mkdir -p "$INSTALL_DEV_DIR"
+mv "$INSTALL_DIR"/include "$INSTALL_DEV_DIR"/
+mkdir -p "$INSTALL_DEV_DIR"/lib
+mv "$INSTALL_DIR"/lib/*.a "$INSTALL_DEV_DIR"/lib/
+mv "$INSTALL_DIR"/lib/cmake "$INSTALL_DEV_DIR"/lib/
+mv "$INSTALL_DIR"/lib/objects-* "$INSTALL_DEV_DIR"/lib/
+mkdir -p "$INSTALL_DEV_DIR"/bin
+mv "$INSTALL_DIR"/bin/tblgen-* "$INSTALL_DEV_DIR"/bin/
 
 if [ -d "$INSTALL_DIR"/python_packages ]; then
-    # Copy python bindings
-    cp -a "$INSTALL_DIR"/python_packages/mlir_core/mlir "$INSTALL_BINDINGS_DIR"/
+    # Python bindings
+    mv "$INSTALL_DIR"/python_packages/mlir_core/mlir "$INSTALL_BINDINGS_DIR"/
     rm -rf "$INSTALL_DIR"/python_packages
-    ! [ -f "$INSTALL_DIR"/lib/libLLVM.so ] || cp -a "$INSTALL_DIR"/lib/libLLVM.so "$INSTALL_BINDINGS_DIR"/mlir/_mlir_libs/
-    ! [ -f "$INSTALL_DIR"/lib/libLLVM.dylib ] || cp -a "$INSTALL_DIR"/lib/libLLVM.dylib "$INSTALL_BINDINGS_DIR"/mlir/_mlir_libs/
 fi
 
 cd "$dir"

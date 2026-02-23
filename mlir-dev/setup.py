@@ -4,9 +4,12 @@ from setuptools.dist import Distribution
 from setuptools.command.bdist_wheel import bdist_wheel
 
 
-PACKAGE_NAME = "mlir-dev"
-PACKAGE_VERSION = "21.1.2.2025091603+b708aea0"
+PACKAGE_NAME = "xtc-mlir-dev"
 
+def get_version():
+    file = Path(__file__).parents[1] / "version.txt"
+    with open(file) as inf:
+        return inf.read().strip()
 
 class BinaryDistribution(Distribution):
     """Distribution which always forces a binary package with platform name"""
@@ -26,7 +29,7 @@ if __name__ == "__main__":
     # Create the binary distribution
     setup(
         name = PACKAGE_NAME,
-        version = PACKAGE_VERSION,
+        version = get_version(),
         description = "Python packaging for mlir tools and mlir dev files",
         maintainer="Christophe Guillon",
         maintainer_email="christophe.guillon@inria.fr",
