@@ -109,6 +109,8 @@ if [ -d "$INSTALL_DIR"/python_packages ]; then
     # Python bindings
     mv "$INSTALL_DIR"/python_packages/mlir_core/mlir "$INSTALL_BINDINGS_DIR"/
     rm -rf "$INSTALL_DIR"/python_packages
+    ! [ -f "$INSTALL_BINDINGS_DIR"/mlir/_mlir_libs/libMLIRPythonCAPI.so ] || \
+        patchelf --set-rpath '$ORIGIN:$ORIGIN/../lib:$ORIGIN/../../llvm/lib' "$INSTALL_BINDINGS_DIR"/mlir/_mlir_libs/libMLIRPythonCAPI.so
 fi
 
 cd "$dir"
