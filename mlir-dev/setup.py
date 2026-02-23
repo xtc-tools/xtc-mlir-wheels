@@ -34,8 +34,8 @@ if __name__ == "__main__":
         maintainer="Christophe Guillon",
         maintainer_email="christophe.guillon@inria.fr",
         python_requires = ">= 3.10",
-        packages = ["mlir_dev"],
-        package_dir = {"mlir_dev": "install"},
+        packages = ["mlir"],
+        package_dir = {"mlir": "install"},
         include_package_data = True,
         distclass=BinaryDistribution,
         cmdclass={
