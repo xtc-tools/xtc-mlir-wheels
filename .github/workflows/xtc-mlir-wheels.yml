@@ -10,8 +10,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-14]
-        pkg: [tools]
+        os: [ubuntu-24.04]
+        pkg: [tools, dev]
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v6
@@ -65,8 +65,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [Linux, macOS]
-        pkg: [tools]
+        os: [Linux]
+        pkg: [tools, dev]
     environment:
       name: testpypi
       url: https://test.pypi.org/p/xtc-mlir-${{ matrix.pkg }}
@@ -92,8 +92,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [Linux, macOS]
-        pkg: [tools]
+        os: [Linux]
+        pkg: [tools, dev]
     environment:
       name: pypi
       url: https://pypi.org/p/xtc-mlir-${{ matrix.pkg }}
