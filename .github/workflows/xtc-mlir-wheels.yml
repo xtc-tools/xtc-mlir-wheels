@@ -33,14 +33,18 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/pip_cache
-          key: ${{ runner.os }}-pip-cache-${{ github.run_id }}
-          restore-keys: ${{ runner.os }}-pip-cache
+          key: ${{ runner.os }}-pip-cache-${{ matrix.pkg }}-${{ github.run_id }}
+          restore-keys: |
+            ${{ runner.os }}-pip-cache-${{ matrix.pkg }}
+            ${{ runner.os }}-pip-cache
       - name: CCache Cache
         uses: actions/cache@v4
         with:
           path: ~/ccache
-          key: ${{ runner.os }}-ccache-${{ github.run_id }}
-          restore-keys: ${{ runner.os }}-ccache
+          key: ${{ runner.os }}-ccache-${{ matrix.pkg }}-${{ github.run_id }}
+          restore-keys: |
+            ${{ runner.os }}-ccache-${{ matrix.pkg }}
+            ${{ runner.os }}-ccache
       - name: Checkout LLVM
         run: |
           ./checkout-llvm.sh
