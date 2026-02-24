@@ -45,6 +45,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-ccache-${{ matrix.pkg }}
             ${{ runner.os }}-ccache
+      - name: DNF Cache
+        uses: actions/cache@v4
+        with:
+          path: ~/dnf_cache
+          key: ${{ runner.os }}-dnf-cache
       - name: Checkout LLVM
         run: |
           ./checkout-llvm.sh
@@ -56,6 +61,7 @@ jobs:
         run: |
           export BUILD_PIP_CACHE_DIR=$HOME/pip_cache
           export BUILD_CCACHE_DIR=$HOME/ccache
+          export BUILD_DNF_CACHE_DIR=$HOME/dnf_cache
           ./build-wheels-${{ matrix.pkg }}.sh
       - name: Store distribution packages
         uses: actions/upload-artifact@v5
