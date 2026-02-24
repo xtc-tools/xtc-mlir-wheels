@@ -11,7 +11,6 @@ BUILD_PACKAGE="${BUILD_PACKAGE:-mlir-tools}"
 
 CIBW_PLATFORM="linux"
 CIBW_ARCHS="x86_64"
-CIBW_BUILD="cp310-manylinux*"
 CIBW_MANYLINUX_IMAGE="manylinux_2_28"
 
 BUILD_CUDA_TOOLS="${BUILD_CUDA_TOOLS:-1}"
@@ -24,17 +23,17 @@ BUILD_PIP_CACHE_DIR="${BUILD_PIP_CACHE_DIR-}"
 # One of: "", bins, default. Used to be bins, now "" (add default tools).
 BUILD_LLVM_COMPONENTS=""
 
-CIBW_BEFORE_BUILD="rm -rf dist build *egg-info"
-CIBW_TEST_COMMAND="{package}/test-installed.sh"
-BUILD_PYTHON=python
-[ "$BUILD_PLATFORM" != "linux" ] || BUILD_PYTHON=/opt/python/cp310-cp310/bin/python
-CIBW_BEFORE_ALL="env PYTHON=$BUILD_PYTHON sh -c './install-build-tools.sh && ./install-llvm.sh && env BUILD_LLVM_MLIR_BINDINGS=0 ./build-mlir.sh'"
-
 if [ "$BUILD_PACKAGE" = "mlir-python-bindings" ]; then
     CIBW_BUILD="cp310-manylinux* cp311-manylinux* cp312-manylinux* cp313-manylinux* cp314-manylinux*"
     CIBW_BEFORE_ALL="./install-build-tools.sh"
-    CIBW_BEFORE_BUILD="rm -rf mlir-python-bindings/mlir mlir-python-bindings/dist mlir-python-bindings/build mlir-python-bindings/*egg-info && ./install-llvm.sh && env BUILD_LLVM_MLIR_BINDINGS=1 ./build-mlir.sh"
+    CIBW_BEFORE_BUILD="./install-llvm.sh && env BUILD_LLVM_MLIR_BINDINGS=1 ./build-mlir.sh"
+else
+    CIBW_BUILD="cp310-manylinux*"
+    CIBW_BEFORE_ALL="./install-build-tools.sh"
+    CIBW_BEFORE_BUILD="./install-llvm.sh && env BUILD_LLVM_MLIR_BINDINGS=0 ./build-mlir.sh"
 fi
+CIBW_TEST_COMMAND="{package}/test-installed.sh"
+
 
 CIBW_BEFORE_TEST="./install-llvm.sh"
 MACOSX_DEPLOYMENT_ARGS=""
@@ -95,6 +94,6 @@ ENV_VARS=(
 [ -z "$MACOSX_DEPLOYMENT_ARGS" ] || ENV_VARS+=("$MACOSX_DEPLOYMENT_ARGS")
 
 env "${ENV_VARS[@]}" \
-     cibuildwheel \
+     "${CIBUILDWHEEL-cibuildwheel}" \
      "$BUILD_PACKAGE"
 

@@ -7,7 +7,7 @@ dir="$(dirname "$(readlink -f "$0")")"
 env | sort
 
 # Dump ccache
-ccache -sv
+ccache -sv || true
 
 BUILD_DIR="${1-llvm-project/mlir/build}"
 INSTALL_DIR="${2-$dir/mlir-tools/install}"
@@ -49,13 +49,13 @@ mkdir -p "$BUILD_DIR"
 
 cd "$BUILD_DIR"
 
-PYTHON="${PYTHON-python}"
-"$PYTHON" --version
+which python3
+python3 --version
 
-LLVM_PREFIX="$("$PYTHON" -c 'import llvm;print(llvm.__path__[0])')"
+LLVM_PREFIX="$(python3 -c 'import llvm;print(llvm.__path__[0])')"
 
-"$PYTHON" -m pip install -r "$dir"/llvm-project/mlir/python/requirements.txt
-"$PYTHON" -m pip list
+python3 -m pip install -r "$dir"/llvm-project/mlir/python/requirements.txt
+python3 -m pip list
 
 cmake \
     -DLLVM_DIR="$LLVM_PREFIX"/lib/cmake/llvm \
