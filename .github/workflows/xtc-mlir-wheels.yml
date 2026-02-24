@@ -10,7 +10,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04]
+        os: [ubuntu-24.04, macos-14]
         pkg: [tools, dev, python-bindings]
     steps:
       - name: Checkout Repository
@@ -75,7 +75,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [Linux]
+        os: [Linux, macOS]
         pkg: [tools, dev, python-bindings]
     environment:
       name: testpypi
@@ -102,7 +102,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [Linux]
+        os: [Linux, macOS]
         pkg: [tools, dev, python-bindings]
     environment:
       name: pypi
