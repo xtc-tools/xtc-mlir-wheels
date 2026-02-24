@@ -4,7 +4,7 @@ from setuptools.dist import Distribution
 from setuptools.command.bdist_wheel import bdist_wheel
 
 
-PACKAGE_NAME = "mlir-python-bindings"
+PACKAGE_NAME = "xtc-mlir-python-bindings"
 
 def get_version():
     file = Path(__file__).parents[1] / "version.txt"
