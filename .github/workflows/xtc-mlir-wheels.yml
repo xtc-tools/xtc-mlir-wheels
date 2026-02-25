@@ -9,9 +9,22 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
-      matrix:
-        os: [ubuntu-24.04, macos-14]
-        pkg: [tools, dev, python-bindings]
+      matrix: &matrixref
+        include:
+          - {os: ubuntu-24.04, pkg: tools, python: cp310}
+          - {os: ubuntu-24.04, pkg: dev, python: cp310}
+          - {os: ubuntu-24.04, pkg: python-bindings, python: cp310}
+          - {os: ubuntu-24.04, pkg: python-bindings, python: cp311}
+          - {os: ubuntu-24.04, pkg: python-bindings, python: cp312}
+          - {os: ubuntu-24.04, pkg: python-bindings, python: cp313}
+          - {os: ubuntu-24.04, pkg: python-bindings, python: cp314}
+          - {os: macos-14, pkg: tools, python: cp310}
+          - {os: macos-14, pkg: dev, python: cp310}
+          - {os: macos-14, pkg: python-bindings, python: cp310}
+          - {os: macos-14, pkg: python-bindings, python: cp311}
+          - {os: macos-14, pkg: python-bindings, python: cp312}
+          - {os: macos-14, pkg: python-bindings, python: cp313}
+          - {os: macos-14, pkg: python-bindings, python: cp314}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v6
@@ -21,16 +34,18 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/pip_cache
-          key: ${{ runner.os }}-pip-cache-${{ matrix.pkg }}-${{ github.run_id }}
+          key: ${{ runner.os }}-pip-cache-${{ matrix.pkg }}-${{ matrix.python }}-${{ github.run_id }}
           restore-keys: |
+            ${{ runner.os }}-pip-cache-${{ matrix.pkg }}-${{ matrix.python }}
             ${{ runner.os }}-pip-cache-${{ matrix.pkg }}
             ${{ runner.os }}-pip-cache
       - name: CCache Cache
         uses: actions/cache@v4
         with:
           path: ~/ccache
-          key: ${{ runner.os }}-ccache-${{ matrix.pkg }}-${{ github.run_id }}
+          key: ${{ runner.os }}-ccache-${{ matrix.pkg }}-${{ matrix.python }}-${{ github.run_id }}
           restore-keys: |
+            ${{ runner.os }}-ccache-${{ matrix.pkg }}-${{ matrix.python }}
             ${{ runner.os }}-ccache-${{ matrix.pkg }}
             ${{ runner.os }}-ccache
       - name: DNF Cache
@@ -56,11 +71,12 @@ jobs:
           export BUILD_PIP_CACHE_DIR=$HOME/pip_cache
           export BUILD_CCACHE_DIR=$HOME/ccache
           export BUILD_DNF_CACHE_DIR=$HOME/dnf_cache
+          export BUILD_FOR_PYTHON=${{ matrix.python }}
           ./build-wheels-${{ matrix.pkg }}.sh
       - name: Store distribution packages
         uses: actions/upload-artifact@v5
         with:
-          name: python-package-xtc-mlir-${{ matrix.pkg }}-${{ runner.os }}
+          name: python-package-xtc-mlir-${{ matrix.pkg }}-${{ matrix.python }}-${{ matrix.os }}
           path: wheelhouse/
 
   publish-to-testpypi:
@@ -68,9 +84,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      matrix:
-        os: [Linux, macOS]
-        pkg: [tools, dev, python-bindings]
+      matrix: *matrixref
     environment:
       name: testpypi
       url: https://test.pypi.org/p/xtc-mlir-${{ matrix.pkg }}
@@ -80,7 +94,7 @@ jobs:
     - name: Download all the dists
       uses: actions/download-artifact@v6
       with:
-        name: python-package-xtc-mlir-${{ matrix.pkg }}-${{ matrix.os }}
+        name: python-package-xtc-mlir-${{ matrix.pkg }}-${{ matrix.python }}-${{ matrix.os }}
         path: dist/
     - name: Publish distribution to Test PyPI
       uses: pypa/gh-action-pypi-publish@release/v1
@@ -95,9 +109,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      matrix:
-        os: [Linux, macOS]
-        pkg: [tools, dev, python-bindings]
+      matrix: *matrixref
     environment:
       name: pypi
       url: https://pypi.org/p/xtc-mlir-${{ matrix.pkg }}
@@ -107,7 +119,7 @@ jobs:
     - name: Download all the dists
       uses: actions/download-artifact@v6
       with:
-        name: python-package-xtc-mlir-${{ matrix.pkg }}-${{ matrix.os }}
+        name: python-package-xtc-mlir-${{ matrix.pkg }}-${{ matrix.python }}-${{ matrix.os }}
         path: dist/
     - name: Publish distribution to PyPI
       uses: pypa/gh-action-pypi-publish@release/v1

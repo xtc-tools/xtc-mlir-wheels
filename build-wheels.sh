@@ -7,11 +7,12 @@ cd "$dir"
 
 BUILD_PLATFORM="${BUILD_PLATFORM:-$(uname -s | tr '[:upper:]' '[:lower:]')}"
 BUILD_PACKAGE="${BUILD_PACKAGE:-mlir-tools}"
-
+BUILD_FOR_PYTHON="${BUILD_FOR_PYTHON:-cp310}"
 
 CIBW_PLATFORM="linux"
 CIBW_ARCHS="x86_64"
 CIBW_MANYLINUX_IMAGE="manylinux_2_28"
+CIBW_BUILD="$BUILD_FOR_PYTHON-manylinux*"
 
 BUILD_CUDA_TOOLS="${BUILD_CUDA_TOOLS:-1}"
 BUILD_VERBOSITY="${BUILD_VERBOSITY:-0}"
@@ -20,22 +21,14 @@ CIBW_DEBUG_KEEP_CONTAINER="${CIBW_DEBUG_KEEP_CONTAINER:-0}"
 BUILD_CCACHE_DIR="${BUILD_CCACHE_DIR-}"
 BUILD_PIP_CACHE_DIR="${BUILD_PIP_CACHE_DIR-}"
 
-# One of: "", bins, default. Used to be bins, now "" (add default tools).
-BUILD_LLVM_COMPONENTS=""
+BUILD_LLVM_MLIR_BINDINGS=0
+[ "$BUILD_PACKAGE" != "mlir-python-bindings" ] || BUILD_LLVM_MLIR_BINDINGS=1
 
-if [ "$BUILD_PACKAGE" = "mlir-python-bindings" ]; then
-    CIBW_BUILD="cp310-manylinux* cp311-manylinux* cp312-manylinux* cp313-manylinux* cp314-manylinux*"
-    CIBW_BEFORE_ALL="./install-build-tools.sh"
-    CIBW_BEFORE_BUILD="./install-llvm.sh && env BUILD_LLVM_MLIR_BINDINGS=1 ./build-mlir.sh"
-else
-    CIBW_BUILD="cp310-manylinux*"
-    CIBW_BEFORE_ALL="./install-build-tools.sh"
-    CIBW_BEFORE_BUILD="./install-llvm.sh && env BUILD_LLVM_MLIR_BINDINGS=0 ./build-mlir.sh"
-fi
+CIBW_BEFORE_ALL="./install-build-tools.sh"
+CIBW_BEFORE_BUILD="./install-llvm.sh && ./build-mlir.sh"
+CIBW_BEFORE_TEST="./install-llvm.sh"
 CIBW_TEST_COMMAND="{package}/test-installed.sh"
 
-
-CIBW_BEFORE_TEST="./install-llvm.sh"
 MACOSX_DEPLOYMENT_ARGS=""
 CONTAINER_ENGINE_ARG=""
 if [ "$BUILD_PLATFORM" = "linux" ]; then
@@ -59,8 +52,7 @@ elif [ "$BUILD_PLATFORM" = "darwin" ]; then
     BUILD_CUDA_TOOLS=0
     CIBW_PLATFORM="macos"
     CIBW_ARCHS="arm64"
-    CIBW_BUILD="cp310-*"
-    [ "$BUILD_PACKAGE" != "mlir-python-bindings" ] || CIBW_BUILD="cp310-macosx_arm64 cp311-macosx_arm64 cp312-macosx_arm64 cp313-macosx_arm64 cp314-macosx_arm64"
+    CIBW_BUILD="$BUILD_FOR_PYTHON-macosx_arm64"
     CIBW_MANYLINUX_IMAGE="" 
     MACOSX_DEPLOYMENT_ARGS="MACOSX_DEPLOYMENT_TARGET=14.0" # supports macos14+
 else
@@ -77,6 +69,7 @@ ENV_VARS=(
     CIBW_BEFORE_ALL="$CIBW_BEFORE_ALL"
     CIBW_BEFORE_BUILD="$CIBW_BEFORE_BUILD"
     CIBW_BEFORE_TEST="$CIBW_BEFORE_TEST"
+    BUILD_LLVM_MLIR_BINDINGS="$BUILD_LLVM_MLIR_BINDINGS"
     CIBW_REPAIR_WHEEL_COMMAND_MACOS="pip install wheel && python mac-os-wheels-fixer.py --original {wheel} --output {dest_dir}"
     CIBW_REPAIR_WHEEL_COMMAND_LINUX="auditwheel repair --exclude 'libcuda.so.*'  --exclude 'libLLVM.so' -w {dest_dir} {wheel}" \
     CIBW_TEST_COMMAND="$CIBW_TEST_COMMAND"
@@ -85,7 +78,7 @@ ENV_VARS=(
     CCACHE_DIR="$BUILD_CCACHE_DIR"
     BUILD_CUDA_TOOLS="$BUILD_CUDA_TOOLS"
     BUILD_LLVM_CLEAN_BUILD_DIR="$BUILD_LLVM_CLEAN_BUILD_DIR"
-    CIBW_ENVIRONMENT_PASS="BUILD_LLVM_CLEAN_BUILD_DIR BUILD_PLATFORM PIP_CACHE_DIR CCACHE_DIR BUILD_CUDA_TOOLS"
+    CIBW_ENVIRONMENT_PASS="BUILD_LLVM_CLEAN_BUILD_DIR BUILD_PLATFORM PIP_CACHE_DIR CCACHE_DIR BUILD_CUDA_TOOLS BUILD_LLVM_MLIR_BINDINGS"
     CIBW_BUILD_VERBOSITY="$BUILD_VERBOSITY"
     CIBW_DEBUG_KEEP_CONTAINER="$CIBW_DEBUG_KEEP_CONTAINER"
 )
