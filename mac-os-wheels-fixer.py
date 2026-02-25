@@ -52,10 +52,8 @@ def custom_wheel_modifications(extracted_dir):
     all_lib = [join(mlir_lib, f) for f in listdir(mlir_lib) if isfile(join(mlir_lib, f)) and f.endswith(".dylib")] if mlir_lib.exists() else []
     
     if mlir_libs.exists():     
-        capi_dylib = pathlib.Path("python_bindings/mlir/_mlir_libs/libMLIRPythonCAPI.dylib")    
         lib_path = mlir_libs / 'libMLIRPythonCAPI.dylib'
-        run_system_command(['install_name_tool', '-change', '@rpath/libLLVM.dylib', '@loader_path/../../llvm/lib/libLLVM.dylib', capi_dylib])
-        run_system_command(['cp', capi_dylib, lib_path])
+        run_system_command(['install_name_tool', '-change', '@rpath/libLLVM.dylib', '@loader_path/../../llvm/lib/libLLVM.dylib', lib_path])
         
     for bin in all_bins:
         run_system_command(['install_name_tool', '-change', '@rpath/libLLVM.dylib', '@loader_path/../../llvm/lib/libLLVM.dylib', bin])
