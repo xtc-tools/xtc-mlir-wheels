@@ -1,0 +1,89 @@
+From 0af61409288b918f64496d0058d14b102d287745 Mon Sep 17 00:00:00 2001
+From: Ziliang Zhang <zzl.coding@gmail.com>
+Date: Wed, 1 Apr 2026 15:16:30 +0800
+Subject: [PATCH] [mlir][bufferization] Cache areNonConflictingSubsets results
+ in OneShotAnalysis
+
+The `areNonConflictingSubsets` check in `hasReadAfterWriteInterference`
+can be expensive when called repeatedly for the same (uRead,
+uConflictingWrite) pairs during bufferization analysis. This patch
+caches the results to avoid redundant computation.
+
+Specifically, this adds:
+- A private `nonConflictingSubsetCache` DenseMap on
+  `OneShotAnalysisState` to memoize subset conflict results.
+- A public `areNonConflictingSubsetsCached` method that wraps the
+  lookup-or-compute pattern, following the same convention as the
+  existing `findDefinitionsCached`.
+- Cache invalidation in `resetCache()`.
+
+The cache key uses `std::pair<OpOperand *, OpOperand *>`, which is
+already supported by LLVM's `DenseMapInfo<std::pair<T, U>>`
+specialization, so no custom DenseMapInfo is needed.
+---
+ .../Bufferization/Transforms/OneShotAnalysis.h       |  8 ++++++++
+ .../Bufferization/Transforms/OneShotAnalysis.cpp     | 12 +++++++++++-
+ 2 files changed, 19 insertions(+), 1 deletion(-)
+
+diff --git a/mlir/include/mlir/Dialect/Bufferization/Transforms/OneShotAnalysis.h b/mlir/include/mlir/Dialect/Bufferization/Transforms/OneShotAnalysis.h
+index 15189d2c1..e27ae83e5 100644
+--- a/mlir/include/mlir/Dialect/Bufferization/Transforms/OneShotAnalysis.h
++++ b/mlir/include/mlir/Dialect/Bufferization/Transforms/OneShotAnalysis.h
+@@ -131,6 +131,11 @@ public:
+   /// retrieve them from the cache.
+   const SetVector<Value> &findDefinitionsCached(OpOperand *opOperand);
+ 
++  /// Return whether `uRead` and `uConflictingWrite` are non-conflicting
++  /// subsets, with caching.
++  bool areNonConflictingSubsetsCached(OpOperand *uRead,
++                                      OpOperand *uConflictingWrite);
++
+   /// Reset cached data structures.
+   void resetCache() override;
+ 
+@@ -232,6 +237,9 @@ private:
+   /// Cache definitions of tensor values.
+   DenseMap<Value, SetVector<Value>> cachedDefinitions;
+ 
++  /// Cache results of areNonConflictingSubsets checks.
++  DenseMap<std::pair<OpOperand *, OpOperand *>, bool> nonConflictingSubsetCache;
++
+   /// Set of all OpResults that were decided to bufferize in-place.
+   llvm::DenseSet<OpOperand *> inplaceBufferized;
+ 
+diff --git a/mlir/lib/Dialect/Bufferization/Transforms/OneShotAnalysis.cpp b/mlir/lib/Dialect/Bufferization/Transforms/OneShotAnalysis.cpp
+index b57811868..4ebb03915 100644
+--- a/mlir/lib/Dialect/Bufferization/Transforms/OneShotAnalysis.cpp
++++ b/mlir/lib/Dialect/Bufferization/Transforms/OneShotAnalysis.cpp
+@@ -732,7 +732,7 @@ hasReadAfterWriteInterference(const DenseSet<OpOperand *> &usesRead,
+       }
+ 
+       // No conflict if the operands are non-conflicting subsets.
+-      if (areNonConflictingSubsets(uRead, uConflictingWrite, state)) {
++      if (state.areNonConflictingSubsetsCached(uRead, uConflictingWrite)) {
+         LLVM_DEBUG(llvm::dbgs() << "  no conflict: non-conflicting subsets\n");
+         continue;
+       }
+@@ -971,9 +971,19 @@ OneShotAnalysisState::findDefinitionsCached(OpOperand *opOperand) {
+   return cachedDefinitions[value];
+ }
+ 
++bool OneShotAnalysisState::areNonConflictingSubsetsCached(
++    OpOperand *uRead, OpOperand *uConflictingWrite) {
++  auto key = std::make_pair(uRead, uConflictingWrite);
++  auto [it, inserted] = nonConflictingSubsetCache.try_emplace(key, false);
++  if (inserted)
++    it->second = areNonConflictingSubsets(uRead, uConflictingWrite, *this);
++  return it->second;
++}
++
+ void OneShotAnalysisState::resetCache() {
+   AnalysisState::resetCache();
+   cachedDefinitions.clear();
++  nonConflictingSubsetCache.clear();
+ }
+ 
+ /// Determine if `operand` can be bufferized in-place.
+-- 
+2.54.0
+
