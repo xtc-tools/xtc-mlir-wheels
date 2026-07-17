@@ -4,7 +4,7 @@ set -x
 dir="$(dirname "$(readlink -f "$0")")"
 
 INDEX_URL=https://pypi.org/simple
-LLVM_VERSION=21.1.2.6
+LLVM_VERSION=22.1.8.1
 
 python3 -m pip install \
         "xtc-llvm-tools==$LLVM_VERSION" \
