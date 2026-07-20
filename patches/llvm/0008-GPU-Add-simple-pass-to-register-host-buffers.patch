@@ -1,4 +1,4 @@
-From 08b6b34338d99aa957f1081cd52bc3345398d5a9 Mon Sep 17 00:00:00 2001
+From 09b138aea2bd2a2a577567cb968e8a50b72839c6 Mon Sep 17 00:00:00 2001
 From: Sylvain Noiry <snoiry@kalrayinc.com>
 Date: Fri, 24 Oct 2025 16:26:24 +0200
 Subject: [PATCH] [GPU] Add simple pass to register host buffers
@@ -13,7 +13,7 @@ Subject: [PATCH] [GPU] Add simple pass to register host buffers
  create mode 100644 mlir/lib/Dialect/GPU/Transforms/RegisterHostBuffers.cpp
 
 diff --git a/mlir/include/mlir/Dialect/GPU/Transforms/Passes.td b/mlir/include/mlir/Dialect/GPU/Transforms/Passes.td
-index 187ac9aa18aa..46104a74f2c1 100644
+index 3a4e5d706..b4b7c5391 100644
 --- a/mlir/include/mlir/Dialect/GPU/Transforms/Passes.td
 +++ b/mlir/include/mlir/Dialect/GPU/Transforms/Passes.td
 @@ -30,6 +30,11 @@ def GpuAsyncRegionPass : Pass<"gpu-async-region", "func::FuncOp"> {
@@ -29,7 +29,7 @@ index 187ac9aa18aa..46104a74f2c1 100644
      : Pass<"gpu-map-parallel-loops", "mlir::func::FuncOp"> {
    let summary = "Greedily maps loops to GPU hardware dimensions.";
 diff --git a/mlir/lib/Dialect/GPU/CMakeLists.txt b/mlir/lib/Dialect/GPU/CMakeLists.txt
-index f2f010a771b7..1016c69ee627 100644
+index f2f010a77..1016c69ee 100644
 --- a/mlir/lib/Dialect/GPU/CMakeLists.txt
 +++ b/mlir/lib/Dialect/GPU/CMakeLists.txt
 @@ -29,6 +29,7 @@ add_mlir_dialect_library(MLIRGPUDialect
@@ -42,7 +42,7 @@ index f2f010a771b7..1016c69ee627 100644
    Transforms/EliminateBarriers.cpp
 diff --git a/mlir/lib/Dialect/GPU/Transforms/RegisterHostBuffers.cpp b/mlir/lib/Dialect/GPU/Transforms/RegisterHostBuffers.cpp
 new file mode 100644
-index 000000000000..6d8dc627ec1b
+index 000000000..6d8dc627e
 --- /dev/null
 +++ b/mlir/lib/Dialect/GPU/Transforms/RegisterHostBuffers.cpp
 @@ -0,0 +1,53 @@
@@ -100,5 +100,5 @@ index 000000000000..6d8dc627ec1b
 +}
 +
 -- 
-2.34.1
+2.43.0
 

@@ -1,4 +1,4 @@
-From 0af61409288b918f64496d0058d14b102d287745 Mon Sep 17 00:00:00 2001
+From 0634c789d114eef1bc45d8c1a580e66df6d422de Mon Sep 17 00:00:00 2001
 From: Ziliang Zhang <zzl.coding@gmail.com>
 Date: Wed, 1 Apr 2026 15:16:30 +0800
 Subject: [PATCH] [mlir][bufferization] Cache areNonConflictingSubsets results
@@ -52,19 +52,19 @@ index 15189d2c1..e27ae83e5 100644
    llvm::DenseSet<OpOperand *> inplaceBufferized;
  
 diff --git a/mlir/lib/Dialect/Bufferization/Transforms/OneShotAnalysis.cpp b/mlir/lib/Dialect/Bufferization/Transforms/OneShotAnalysis.cpp
-index b57811868..4ebb03915 100644
+index 5dfe3e632..97f388229 100644
 --- a/mlir/lib/Dialect/Bufferization/Transforms/OneShotAnalysis.cpp
 +++ b/mlir/lib/Dialect/Bufferization/Transforms/OneShotAnalysis.cpp
-@@ -732,7 +732,7 @@ hasReadAfterWriteInterference(const DenseSet<OpOperand *> &usesRead,
+@@ -727,7 +727,7 @@ hasReadAfterWriteInterference(const DenseSet<OpOperand *> &usesRead,
        }
  
        // No conflict if the operands are non-conflicting subsets.
 -      if (areNonConflictingSubsets(uRead, uConflictingWrite, state)) {
 +      if (state.areNonConflictingSubsetsCached(uRead, uConflictingWrite)) {
-         LLVM_DEBUG(llvm::dbgs() << "  no conflict: non-conflicting subsets\n");
+         LDBG() << "  no conflict: non-conflicting subsets";
          continue;
        }
-@@ -971,9 +971,19 @@ OneShotAnalysisState::findDefinitionsCached(OpOperand *opOperand) {
+@@ -966,9 +966,19 @@ OneShotAnalysisState::findDefinitionsCached(OpOperand *opOperand) {
    return cachedDefinitions[value];
  }
  
@@ -85,5 +85,5 @@ index b57811868..4ebb03915 100644
  
  /// Determine if `operand` can be bufferized in-place.
 -- 
-2.54.0
+2.43.0
 

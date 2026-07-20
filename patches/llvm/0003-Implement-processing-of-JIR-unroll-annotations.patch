@@ -1,11 +1,11 @@
-From d3bfa18a5feada7f1e1509880a7a2b2fc6b945bc Mon Sep 17 00:00:00 2001
+From b9005c070cdbd92a9d7be5367e0f267afa735bb6 Mon Sep 17 00:00:00 2001
 From: Jevgenijs Protopopovs <jevgenijs.protopopovs@inria.fr>
 Date: Mon, 6 May 2024 10:25:20 +0200
 Subject: [PATCH 3/5] Implement processing of JIR unroll annotations
 
 ---
- mlir/include/mlir/Dialect/Affine/Passes.h     |  2 +-
- mlir/include/mlir/Dialect/Affine/Passes.td    |  6 +-
+ .../mlir/Dialect/Affine/Transforms/Passes.h   |  2 +-
+ .../mlir/Dialect/Affine/Transforms/Passes.td  |  6 +-
  mlir/include/mlir/Dialect/Affine/Utils.h      |  3 +-
  .../Dialect/Affine/Transforms/CMakeLists.txt  |  2 +-
  .../Affine/Transforms/JirAffineTransform.cpp  | 83 +++++++++++++++++++
@@ -15,25 +15,25 @@ Subject: [PATCH 3/5] Implement processing of JIR unroll annotations
  create mode 100644 mlir/lib/Dialect/Affine/Transforms/JirAffineTransform.cpp
  delete mode 100644 mlir/lib/Dialect/Affine/Transforms/JirAffineVectorize.cpp
 
-diff --git a/mlir/include/mlir/Dialect/Affine/Passes.h b/mlir/include/mlir/Dialect/Affine/Passes.h
-index eb6e79b13cf9..bba442d49e19 100644
---- a/mlir/include/mlir/Dialect/Affine/Passes.h
-+++ b/mlir/include/mlir/Dialect/Affine/Passes.h
-@@ -127,7 +127,7 @@ std::unique_ptr<Pass> createAffineExpandIndexOpsPass();
- /// operations.
- std::unique_ptr<Pass> createAffineExpandIndexOpsAsAffinePass();
+diff --git a/mlir/include/mlir/Dialect/Affine/Transforms/Passes.h b/mlir/include/mlir/Dialect/Affine/Transforms/Passes.h
+index e9bd616e1..8c96bd059 100644
+--- a/mlir/include/mlir/Dialect/Affine/Transforms/Passes.h
++++ b/mlir/include/mlir/Dialect/Affine/Transforms/Passes.h
+@@ -131,7 +131,7 @@ std::unique_ptr<Pass> createAffineExpandIndexOpsAsAffinePass();
+ /// ops into `patterns`.
+ void populateAffineFoldMemRefAliasOpPatterns(RewritePatternSet &patterns);
  
 -std::unique_ptr<OperationPass<func::FuncOp>> createJirAffineVectorizePass();
 +std::unique_ptr<OperationPass<func::FuncOp>> createJirAffineTransformPass();
  std::unique_ptr<OperationPass<func::FuncOp>> createJirTerminalSubviewEliminatePass();
  
  //===----------------------------------------------------------------------===//
-diff --git a/mlir/include/mlir/Dialect/Affine/Passes.td b/mlir/include/mlir/Dialect/Affine/Passes.td
-index 547676d03c34..5d68daa2bfbb 100644
---- a/mlir/include/mlir/Dialect/Affine/Passes.td
-+++ b/mlir/include/mlir/Dialect/Affine/Passes.td
-@@ -441,9 +441,9 @@ def AffineExpandIndexOpsAsAffine : Pass<"affine-expand-index-ops-as-affine"> {
-   let constructor = "mlir::affine::createAffineExpandIndexOpsAsAffinePass()";
+diff --git a/mlir/include/mlir/Dialect/Affine/Transforms/Passes.td b/mlir/include/mlir/Dialect/Affine/Transforms/Passes.td
+index c74747d69..2b7555998 100644
+--- a/mlir/include/mlir/Dialect/Affine/Transforms/Passes.td
++++ b/mlir/include/mlir/Dialect/Affine/Transforms/Passes.td
+@@ -451,9 +451,9 @@ def AffineFoldMemRefAliasOps : Pass<"affine-fold-memref-alias-ops"> {
+   let dependentDialects = ["memref::MemRefDialect"];
  }
  
 -def JirAffineVectorize : Pass<"jir-affine-vectorize", "func::FuncOp"> {
@@ -46,7 +46,7 @@ index 547676d03c34..5d68daa2bfbb 100644
    let options = [];
  }
 diff --git a/mlir/include/mlir/Dialect/Affine/Utils.h b/mlir/include/mlir/Dialect/Affine/Utils.h
-index ac11f5a7c24c..5fba14ff34dd 100644
+index ac11f5a7c..5fba14ff3 100644
 --- a/mlir/include/mlir/Dialect/Affine/Utils.h
 +++ b/mlir/include/mlir/Dialect/Affine/Utils.h
 @@ -160,7 +160,8 @@ void vectorizeAffineLoops(
@@ -60,10 +60,10 @@ index ac11f5a7c24c..5fba14ff34dd 100644
  /// Normalize a affine.parallel op so that lower bounds are 0 and steps are 1.
  /// As currently implemented, this transformation cannot fail and will return
 diff --git a/mlir/lib/Dialect/Affine/Transforms/CMakeLists.txt b/mlir/lib/Dialect/Affine/Transforms/CMakeLists.txt
-index 2d6ceb6729e7..0394a725a191 100644
+index c08f838ea..8b99165f0 100644
 --- a/mlir/lib/Dialect/Affine/Transforms/CMakeLists.txt
 +++ b/mlir/lib/Dialect/Affine/Transforms/CMakeLists.txt
-@@ -18,7 +18,7 @@ add_mlir_dialect_library(MLIRAffineTransforms
+@@ -19,7 +19,7 @@ add_mlir_dialect_library(MLIRAffineTransforms
    SuperVectorize.cpp
    SimplifyAffineStructures.cpp
    SimplifyAffineMinMax.cpp
@@ -74,11 +74,11 @@ index 2d6ceb6729e7..0394a725a191 100644
    ADDITIONAL_HEADER_DIRS
 diff --git a/mlir/lib/Dialect/Affine/Transforms/JirAffineTransform.cpp b/mlir/lib/Dialect/Affine/Transforms/JirAffineTransform.cpp
 new file mode 100644
-index 000000000000..df33a60fad34
+index 000000000..b30459af1
 --- /dev/null
 +++ b/mlir/lib/Dialect/Affine/Transforms/JirAffineTransform.cpp
 @@ -0,0 +1,83 @@
-+#include "mlir/Dialect/Affine/Passes.h"
++#include "mlir/Dialect/Affine/Transforms/Passes.h"
 +
 +#include "mlir/Dialect/Affine/IR/AffineOps.h"
 +#include "mlir/Dialect/Affine/Transforms/Transforms.h"
@@ -91,7 +91,7 @@ index 000000000000..df33a60fad34
 +namespace mlir {
 +namespace affine {
 +#define GEN_PASS_DEF_JIRAFFINETRANSFORM
-+#include "mlir/Dialect/Affine/Passes.h.inc"
++#include "mlir/Dialect/Affine/Transforms/Passes.h.inc"
 +} // namespace affine
 +} // namespace mlir
 +
@@ -121,7 +121,7 @@ index 000000000000..df33a60fad34
 +        if (op->hasAttrOfType<IntegerAttr>("jir.transform.unroll")) {
 +          unroll = op->getAttrOfType<IntegerAttr>("jir.transform.unroll").getInt();
 +        }
-+       
++
 +        if (vectorize > 0 || unroll >= 0) {
 +          worklist.emplace_back(vectorize, unroll, forOp);
 +        }
@@ -163,11 +163,11 @@ index 000000000000..df33a60fad34
 +}
 diff --git a/mlir/lib/Dialect/Affine/Transforms/JirAffineVectorize.cpp b/mlir/lib/Dialect/Affine/Transforms/JirAffineVectorize.cpp
 deleted file mode 100644
-index c018546a037f..000000000000
+index 69ca00b37..000000000
 --- a/mlir/lib/Dialect/Affine/Transforms/JirAffineVectorize.cpp
 +++ /dev/null
 @@ -1,58 +0,0 @@
--#include "mlir/Dialect/Affine/Passes.h"
+-#include "mlir/Dialect/Affine/Transforms/Passes.h"
 -
 -#include "mlir/Dialect/Affine/IR/AffineOps.h"
 -#include "mlir/Dialect/Affine/Transforms/Transforms.h"
@@ -179,7 +179,7 @@ index c018546a037f..000000000000
 -namespace mlir {
 -namespace affine {
 -#define GEN_PASS_DEF_JIRAFFINEVECTORIZE
--#include "mlir/Dialect/Affine/Passes.h.inc"
+-#include "mlir/Dialect/Affine/Transforms/Passes.h.inc"
 -} // namespace affine
 -} // namespace mlir
 -
@@ -226,10 +226,10 @@ index c018546a037f..000000000000
 -  return std::make_unique<JirAffineVectorizePass>();
 -}
 diff --git a/mlir/lib/Dialect/Affine/Transforms/SuperVectorize.cpp b/mlir/lib/Dialect/Affine/Transforms/SuperVectorize.cpp
-index 7fae260767e0..3a2685ba95c5 100644
+index 9627cf8bd..56bc1e614 100644
 --- a/mlir/lib/Dialect/Affine/Transforms/SuperVectorize.cpp
 +++ b/mlir/lib/Dialect/Affine/Transforms/SuperVectorize.cpp
-@@ -1597,7 +1597,8 @@ getMatchedAffineLoops(NestedMatch match,
+@@ -1593,7 +1593,8 @@ getMatchedAffineLoops(NestedMatch match,
  /// using an n-D vectorization strategy.
  static LogicalResult
  vectorizeLoopNest(std::vector<SmallVector<AffineForOp, 2>> &loops,
@@ -239,7 +239,7 @@ index 7fae260767e0..3a2685ba95c5 100644
    assert(loops[0].size() == 1 && "Expected single root loop");
    AffineForOp rootLoop = loops[0][0];
    VectorizationState state(rootLoop.getContext());
-@@ -1653,6 +1654,10 @@ vectorizeLoopNest(std::vector<SmallVector<AffineForOp, 2>> &loops,
+@@ -1649,6 +1650,10 @@ vectorizeLoopNest(std::vector<SmallVector<AffineForOp, 2>> &loops,
    for (auto resPair : state.loopResultScalarReplacement)
      resPair.first.replaceAllUsesWith(resPair.second);
  
@@ -250,7 +250,7 @@ index 7fae260767e0..3a2685ba95c5 100644
    assert(state.opVectorReplacement.count(rootLoop) == 1 &&
           "Expected vector replacement for loop nest");
    LLVM_DEBUG(dbgs() << "\n[early-vect]+++++ success vectorizing pattern");
-@@ -1921,10 +1926,11 @@ void mlir::affine::vectorizeAffineLoops(
+@@ -1916,10 +1921,11 @@ void mlir::affine::vectorizeAffineLoops(
  /// loops = {{%i1}}, to vectorize only the middle loop.
  LogicalResult mlir::affine::vectorizeAffineLoopNest(
      std::vector<SmallVector<AffineForOp, 2>> &loops,
@@ -264,6 +264,7 @@ index 7fae260767e0..3a2685ba95c5 100644
 -  return vectorizeLoopNest(loops, strategy);
 +  return vectorizeLoopNest(loops, strategy, replacementRootLoop);
  }
+\ No newline at end of file
 -- 
-2.34.1
+2.43.0
 

@@ -1,4 +1,4 @@
-From abc34938280912a02c769f15e91b2083689b3176 Mon Sep 17 00:00:00 2001
+From 590d345acfa306c580825c90eccb0f73b2b36f92 Mon Sep 17 00:00:00 2001
 From: Jevgenijs Protopopovs <jevgenijs.protopopovs@inria.fr>
 Date: Mon, 24 Jun 2024 12:41:16 +0200
 Subject: [PATCH 5/5] Add memref-noalias option to async-parallel-for transform
@@ -11,7 +11,7 @@ Subject: [PATCH 5/5] Add memref-noalias option to async-parallel-for transform
  3 files changed, 23 insertions(+), 10 deletions(-)
 
 diff --git a/mlir/include/mlir/Dialect/Async/Passes.td b/mlir/include/mlir/Dialect/Async/Passes.td
-index 8bbb542d3acf..fa07a44f58da 100644
+index 8bbb542d3..fa07a44f5 100644
 --- a/mlir/include/mlir/Dialect/Async/Passes.td
 +++ b/mlir/include/mlir/Dialect/Async/Passes.td
 @@ -29,7 +29,11 @@ def AsyncParallelForPass : Pass<"async-parallel-for", "ModuleOp"> {
@@ -28,7 +28,7 @@ index 8bbb542d3acf..fa07a44f58da 100644
  
    let dependentDialects = [
 diff --git a/mlir/include/mlir/Dialect/Async/Transforms.h b/mlir/include/mlir/Dialect/Async/Transforms.h
-index 7e7276281546..18da0ed2d4db 100644
+index 7e7276281..18da0ed2d 100644
 --- a/mlir/include/mlir/Dialect/Async/Transforms.h
 +++ b/mlir/include/mlir/Dialect/Async/Transforms.h
 @@ -31,7 +31,7 @@ using AsyncMinTaskSizeComputationFunction =
@@ -41,10 +41,10 @@ index 7e7276281546..18da0ed2d4db 100644
  
  } // namespace async
 diff --git a/mlir/lib/Dialect/Async/Transforms/AsyncParallelFor.cpp b/mlir/lib/Dialect/Async/Transforms/AsyncParallelFor.cpp
-index 27fa92cee79c..19cf938f5743 100644
+index 96283cddd..1cb81bf2a 100644
 --- a/mlir/lib/Dialect/Async/Transforms/AsyncParallelFor.cpp
 +++ b/mlir/lib/Dialect/Async/Transforms/AsyncParallelFor.cpp
-@@ -108,11 +108,11 @@ struct AsyncParallelForPass
+@@ -107,11 +107,11 @@ struct AsyncParallelForPass
  struct AsyncParallelForRewrite : public OpRewritePattern<scf::ParallelOp> {
  public:
    AsyncParallelForRewrite(
@@ -58,7 +58,7 @@ index 27fa92cee79c..19cf938f5743 100644
  
    LogicalResult matchAndRewrite(scf::ParallelOp op,
                                  PatternRewriter &rewriter) const override;
-@@ -121,6 +121,7 @@ private:
+@@ -120,6 +120,7 @@ private:
    bool asyncDispatch;
    int32_t numWorkerThreads;
    AsyncMinTaskSizeComputationFunction computeMinTaskSize;
@@ -66,7 +66,7 @@ index 27fa92cee79c..19cf938f5743 100644
  };
  
  struct ParallelComputeFunctionType {
-@@ -241,7 +242,7 @@ getParallelComputeFunctionType(scf::ParallelOp op, PatternRewriter &rewriter) {
+@@ -240,7 +241,7 @@ getParallelComputeFunctionType(scf::ParallelOp op, PatternRewriter &rewriter) {
  // Create a parallel compute fuction from the parallel operation.
  static ParallelComputeFunction createParallelComputeFunction(
      scf::ParallelOp op, const ParallelComputeFunctionBounds &bounds,
@@ -75,7 +75,7 @@ index 27fa92cee79c..19cf938f5743 100644
    OpBuilder::InsertionGuard guard(rewriter);
    ImplicitLocOpBuilder b(op.getLoc(), rewriter);
  
-@@ -256,6 +257,14 @@ static ParallelComputeFunction createParallelComputeFunction(
+@@ -255,6 +256,14 @@ static ParallelComputeFunction createParallelComputeFunction(
        numBlockAlignedInnerLoops > 0 ? "parallel_compute_fn_with_aligned_loops"
                                      : "parallel_compute_fn",
        type);
@@ -90,7 +90,7 @@ index 27fa92cee79c..19cf938f5743 100644
    func.setPrivate();
  
    // Insert function into the module symbol table and assign it unique name.
-@@ -865,7 +874,7 @@ AsyncParallelForRewrite::matchAndRewrite(scf::ParallelOp op,
+@@ -863,7 +872,7 @@ AsyncParallelForRewrite::matchAndRewrite(scf::ParallelOp op,
      // Dispatch parallel compute function without hints to unroll inner loops.
      auto dispatchDefault = [&](OpBuilder &nestedBuilder, Location loc) {
        ParallelComputeFunction compute =
@@ -99,7 +99,7 @@ index 27fa92cee79c..19cf938f5743 100644
  
        ImplicitLocOpBuilder b(loc, nestedBuilder);
        doDispatch(b, rewriter, compute, op, blockSize, blockCount, tripCounts);
-@@ -875,7 +884,7 @@ AsyncParallelForRewrite::matchAndRewrite(scf::ParallelOp op,
+@@ -873,7 +882,7 @@ AsyncParallelForRewrite::matchAndRewrite(scf::ParallelOp op,
      // Dispatch parallel compute function with hints for unrolling inner loops.
      auto dispatchBlockAligned = [&](OpBuilder &nestedBuilder, Location loc) {
        ParallelComputeFunction compute = createParallelComputeFunction(
@@ -108,16 +108,16 @@ index 27fa92cee79c..19cf938f5743 100644
  
        ImplicitLocOpBuilder b(loc, nestedBuilder);
        // Align the block size to be a multiple of the statically known
-@@ -920,7 +929,7 @@ void AsyncParallelForPass::runOnOperation() {
+@@ -918,7 +927,7 @@ void AsyncParallelForPass::runOnOperation() {
  
    RewritePatternSet patterns(ctx);
    populateAsyncParallelForPatterns(
 -      patterns, asyncDispatch, numWorkerThreads,
 +      patterns, asyncDispatch, numWorkerThreads, memrefNoalias,
        [&](ImplicitLocOpBuilder builder, scf::ParallelOp op) {
-         return builder.create<arith::ConstantIndexOp>(minTaskSize);
+         return arith::ConstantIndexOp::create(builder, minTaskSize);
        });
-@@ -929,9 +938,9 @@ void AsyncParallelForPass::runOnOperation() {
+@@ -927,9 +936,9 @@ void AsyncParallelForPass::runOnOperation() {
  }
  
  void mlir::async::populateAsyncParallelForPatterns(
@@ -130,5 +130,5 @@ index 27fa92cee79c..19cf938f5743 100644
                                          computeMinTaskSize);
  }
 -- 
-2.34.1
+2.43.0
 

@@ -1,0 +1,44 @@
+From 293c41fa8ffa1a048482ad2dea03b4e7bb8b8f6d Mon Sep 17 00:00:00 2001
+From: Liam Semeria <liamsemeria@gmail.com>
+Date: Mon, 20 Jul 2026 16:02:58 +0200
+Subject: [PATCH] transform: only require contiguous layout for reshape-based
+ unit dim drop
+
+ExtractInsertSlice uses memref::SubViewOp::rankReduceIfNeeded, which
+does not check strides. Move the areTrailingDimsContiguous check so it
+only guards the ReassociativeReshape path.
+---
+ mlir/lib/Dialect/Linalg/Transforms/DropUnitDims.cpp | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/mlir/lib/Dialect/Linalg/Transforms/DropUnitDims.cpp b/mlir/lib/Dialect/Linalg/Transforms/DropUnitDims.cpp
+index 7a28cd47a..56d751ef5 100644
+--- a/mlir/lib/Dialect/Linalg/Transforms/DropUnitDims.cpp
++++ b/mlir/lib/Dialect/Linalg/Transforms/DropUnitDims.cpp
+@@ -281,11 +281,6 @@ ControlDropUnitDims::collapseValue(RewriterBase &rewriter, Location loc,
+                                    ArrayRef<ReassociationIndices> reassociation,
+                                    const ControlDropUnitDims &control) {
+   if (auto memrefType = dyn_cast<MemRefType>(operand.getType())) {
+-    // Collapsible if continuous over all dimensions
+-    if (!memrefType.areTrailingDimsContiguous(memrefType.getRank())) {
+-      // Do not collapse memrefs with a non-identity layout.
+-      return failure();
+-    }
+     if (control.rankReductionStrategy ==
+         ControlDropUnitDims::RankReductionStrategy::ExtractInsertSlice) {
+       FailureOr<Value> rankReducingExtract =
+@@ -299,6 +294,11 @@ ControlDropUnitDims::collapseValue(RewriterBase &rewriter, Location loc,
+         control.rankReductionStrategy ==
+             ControlDropUnitDims::RankReductionStrategy::ReassociativeReshape &&
+         "unknown rank reduction strategy");
++    // Collapsible if continuous over all dimensions
++    if (!memrefType.areTrailingDimsContiguous(memrefType.getRank())) {
++      // Do not collapse memrefs with a non-identity layout.
++      return failure();
++    }
+     MemRefLayoutAttrInterface layout;
+     auto targetType = MemRefType::get(targetShape, memrefType.getElementType(),
+                                       layout, memrefType.getMemorySpace());
+-- 
+2.43.0
+

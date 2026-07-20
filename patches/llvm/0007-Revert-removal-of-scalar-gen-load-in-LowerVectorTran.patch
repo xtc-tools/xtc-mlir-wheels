@@ -1,4 +1,4 @@
-From 7ee072a2bf325e189e13f0e605cd9c0fb4d2619f Mon Sep 17 00:00:00 2001
+From 0dbb3b6545a484edfd454752fb9ed2ad4a29d7ec Mon Sep 17 00:00:00 2001
 From: Christophe Guillon <christophe.guillon@inria.fr>
 Date: Wed, 29 Oct 2025 18:44:08 +0100
 Subject: [PATCH] Revert removal of scalar gen load in LowerVectorTransfer
@@ -11,7 +11,7 @@ Unfortunately it impairs some codegen, reactivate it for now.
  1 file changed, 18 insertions(+)
 
 diff --git a/mlir/lib/Dialect/Vector/Transforms/LowerVectorTransfer.cpp b/mlir/lib/Dialect/Vector/Transforms/LowerVectorTransfer.cpp
-index fb040bc51a99..b5d129fe63d7 100644
+index 2cf8f0bea..7bf6fe311 100644
 --- a/mlir/lib/Dialect/Vector/Transforms/LowerVectorTransfer.cpp
 +++ b/mlir/lib/Dialect/Vector/Transforms/LowerVectorTransfer.cpp
 @@ -355,6 +355,24 @@ struct TransferOpReduceRank
@@ -40,5 +40,5 @@ index fb040bc51a99..b5d129fe63d7 100644
          originalVecType.getShape().take_back(reducedShapeRank));
      SmallVector<bool> newScalableDims(
 -- 
-2.30.2
+2.43.0
 
