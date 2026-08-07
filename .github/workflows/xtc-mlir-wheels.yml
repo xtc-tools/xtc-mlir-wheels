@@ -18,6 +18,13 @@ jobs:
           - {os: ubuntu-24.04, pkg: python-bindings, python: cp312}
           - {os: ubuntu-24.04, pkg: python-bindings, python: cp313}
           - {os: ubuntu-24.04, pkg: python-bindings, python: cp314}
+          - {os: ubuntu-24.04-arm, pkg: tools, python: cp310}
+          - {os: ubuntu-24.04-arm, pkg: dev, python: cp310}
+          - {os: ubuntu-24.04-arm, pkg: python-bindings, python: cp310}
+          - {os: ubuntu-24.04-arm, pkg: python-bindings, python: cp311}
+          - {os: ubuntu-24.04-arm, pkg: python-bindings, python: cp312}
+          - {os: ubuntu-24.04-arm, pkg: python-bindings, python: cp313}
+          - {os: ubuntu-24.04-arm, pkg: python-bindings, python: cp314}
           - {os: macos-14, pkg: tools, python: cp310}
           - {os: macos-14, pkg: dev, python: cp310}
           - {os: macos-14, pkg: python-bindings, python: cp310}
@@ -34,25 +41,25 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/pip_cache
-          key: ${{ runner.os }}-pip-cache-${{ matrix.pkg }}-${{ matrix.python }}-${{ github.run_id }}
+          key: ${{ runner.os }}-${{ runner.arch }}-pip-cache-${{ matrix.pkg }}-${{ matrix.python }}-${{ github.run_id }}
           restore-keys: |
-            ${{ runner.os }}-pip-cache-${{ matrix.pkg }}-${{ matrix.python }}
-            ${{ runner.os }}-pip-cache-${{ matrix.pkg }}
-            ${{ runner.os }}-pip-cache
+            ${{ runner.os }}-${{ runner.arch }}-pip-cache-${{ matrix.pkg }}-${{ matrix.python }}
+            ${{ runner.os }}-${{ runner.arch }}-pip-cache-${{ matrix.pkg }}
+            ${{ runner.os }}-${{ runner.arch }}-pip-cache
       - name: CCache Cache
         uses: actions/cache@v4
         with:
           path: ~/ccache
-          key: ${{ runner.os }}-ccache-${{ matrix.pkg }}-${{ matrix.python }}-${{ github.run_id }}
+          key: ${{ runner.os }}-${{ runner.arch }}-ccache-${{ matrix.pkg }}-${{ matrix.python }}-${{ github.run_id }}
           restore-keys: |
-            ${{ runner.os }}-ccache-${{ matrix.pkg }}-${{ matrix.python }}
-            ${{ runner.os }}-ccache-${{ matrix.pkg }}
-            ${{ runner.os }}-ccache
+            ${{ runner.os }}-${{ runner.arch }}-ccache-${{ matrix.pkg }}-${{ matrix.python }}
+            ${{ runner.os }}-${{ runner.arch }}-ccache-${{ matrix.pkg }}
+            ${{ runner.os }}-${{ runner.arch }}-ccache
       - name: DNF Cache
         uses: actions/cache@v4
         with:
           path: ~/dnf_cache
-          key: ${{ runner.os }}-dnf-cache
+          key: ${{ runner.os }}-${{ runner.arch }}-dnf-cache
       - name: Checkout LLVM
         run: |
           ./checkout-llvm.sh
