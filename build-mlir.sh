@@ -102,6 +102,7 @@ fi
 
 mkdir -p "$INSTALL_DEV_DIR"
 mv "$INSTALL_DIR"/include "$INSTALL_DEV_DIR"/
+[ ! -d "$INSTALL_DIR"/src ] || mv "$INSTALL_DIR"/src "$INSTALL_DEV_DIR"/
 mkdir -p "$INSTALL_DEV_DIR"/lib
 mv "$INSTALL_DIR"/lib/*.a "$INSTALL_DEV_DIR"/lib/
 mv "$INSTALL_DIR"/lib/cmake "$INSTALL_DEV_DIR"/lib/
