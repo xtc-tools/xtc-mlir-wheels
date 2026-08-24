@@ -25,6 +25,7 @@ BUILD_PIP_CACHE_DIR="${BUILD_PIP_CACHE_DIR-}"
 
 BUILD_LLVM_MLIR_BINDINGS=0
 [ "$BUILD_PACKAGE" != "mlir-python-bindings" ] || BUILD_LLVM_MLIR_BINDINGS=1
+[ "$BUILD_PACKAGE" != "mlir-dev" ] || BUILD_LLVM_MLIR_BINDINGS=1
 
 CIBW_BEFORE_ALL="./install-build-tools.sh"
 CIBW_BEFORE_BUILD="./install-llvm.sh && ./build-mlir.sh"
