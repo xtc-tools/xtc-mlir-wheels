@@ -1,0 +1,146 @@
+From bed62be5f7c98bec470291699785cf5eceddc69e Mon Sep 17 00:00:00 2001
+From: Sylvain Noiry <sylvain.noiry@inria.fr>
+Date: Thu, 27 Aug 2026 11:36:11 +0200
+Subject: [PATCH] [Linalg] Fix specialize of matmul with transpose
+
+Backport from 9d25d5c4a7f7840ef7ea75633757469148f12ebf
+---
+ mlir/lib/Dialect/Linalg/IR/LinalgOps.cpp      | 40 ++++++++-------
+ .../Dialect/Linalg/Transforms/Specialize.cpp  | 49 ++++++++++++++++---
+ 2 files changed, 65 insertions(+), 24 deletions(-)
+
+diff --git a/mlir/lib/Dialect/Linalg/IR/LinalgOps.cpp b/mlir/lib/Dialect/Linalg/IR/LinalgOps.cpp
+index 210f9584c1e8..11b340375c1f 100644
+--- a/mlir/lib/Dialect/Linalg/IR/LinalgOps.cpp
++++ b/mlir/lib/Dialect/Linalg/IR/LinalgOps.cpp
+@@ -191,16 +191,19 @@ static void buildMatmulOp(OpBuilder &b, OperationState &state,
+                           ValueRange inputs, ValueRange outputs,
+                           ArrayRef<NamedAttribute> attributes,
+                           RegionBuilderFn regionBuilder,
+-                          ArrayRef<AffineMap> indexingMaps) {
+-  // Initialize indexingMaps attribute, for MatmulOp.
+-  SmallVector<Attribute, 3> indexingMapsAttrVal;
+-  indexingMapsAttrVal =
+-      llvm::map_to_vector(indexingMaps, [](AffineMap map) -> Attribute {
+-        return AffineMapAttr::get(map);
+-      });
+-  state.addAttribute("indexing_maps", b.getArrayAttr(indexingMapsAttrVal));
++			  ArrayRef<AffineMap> defaultIndexingMaps) {
++  // If indexing maps are not provided, apply the default ones.
++  if (none_of(attributes, [](NamedAttribute attr) {
++        return attr.getName() == "indexing_maps";
++      })) {
++    SmallVector<Attribute, 3> indexingMapsAttrVal;
++    indexingMapsAttrVal = llvm::map_to_vector(
++        defaultIndexingMaps,
++        [](AffineMap map) -> Attribute { return AffineMapAttr::get(map); });
++    state.addAttribute("indexing_maps", b.getArrayAttr(indexingMapsAttrVal));
++  }
+   return buildStructuredOp(b, state, resultTensorTypes, inputs, outputs,
+-                           attributes, regionBuilder);
++                            attributes, regionBuilder);
+ }
+ 
+ static void buildBatchMatmulOp(OpBuilder &b, OperationState &state,
+@@ -208,14 +211,17 @@ static void buildBatchMatmulOp(OpBuilder &b, OperationState &state,
+                                ValueRange inputs, ValueRange outputs,
+                                ArrayRef<NamedAttribute> attributes,
+                                RegionBuilderFn regionBuilder,
+-                               ArrayRef<AffineMap> indexingMaps) {
+-  // Initialize indexingMaps attribute, for BatchMatmulOp.
+-  SmallVector<Attribute, 4> indexingMapsAttrVal;
+-  indexingMapsAttrVal =
+-      llvm::map_to_vector(indexingMaps, [](AffineMap map) -> Attribute {
+-        return AffineMapAttr::get(map);
+-      });
+-  state.addAttribute("indexing_maps", b.getArrayAttr(indexingMapsAttrVal));
++			       ArrayRef<AffineMap> defaultIndexingMaps) {
++  // If indexing maps are not provided, apply the default ones.
++  if (none_of(attributes, [](NamedAttribute attr) {
++        return attr.getName() == "indexing_maps";
++      })) {
++    SmallVector<Attribute, 4> indexingMapsAttrVal;
++    indexingMapsAttrVal = llvm::map_to_vector(
++        defaultIndexingMaps,
++        [](AffineMap map) -> Attribute { return AffineMapAttr::get(map); });
++    state.addAttribute("indexing_maps", b.getArrayAttr(indexingMapsAttrVal));
++  }
+   return buildStructuredOp(b, state, resultTensorTypes, inputs, outputs,
+                            attributes, regionBuilder);
+ }
+diff --git a/mlir/lib/Dialect/Linalg/Transforms/Specialize.cpp b/mlir/lib/Dialect/Linalg/Transforms/Specialize.cpp
+index 0c7b998ffcab..977b46a51f53 100644
+--- a/mlir/lib/Dialect/Linalg/Transforms/Specialize.cpp
++++ b/mlir/lib/Dialect/Linalg/Transforms/Specialize.cpp
+@@ -135,10 +135,24 @@ static IndexMatchResult matchOperandMap(AffineMap map, unsigned rowDimIdx,
+ //      `linalg.{batch_}?matmul{_transpose_a | _transpose_b}?`
+ //  have same number of ins/out, so its easy to stamp different versions.
+ template <typename NamedOpTy>
+-static LinalgOp replaceWithMatmulVariant(RewriterBase &rewriter, GenericOp op) {
++static LinalgOp replaceWithMatmulVariant(RewriterBase &rewriter,
++					 GenericOp op,
++					 ArrayRef<AffineMap> indexingMaps) {
++  SmallVector<NamedAttribute> attributes;
++  // Set the original generic's maps to preserve operand indexing semantics like
++  // transposition.
++  SmallVector<Attribute, 3> indexingMapsAttrVal =
++      llvm::map_to_vector(indexingMaps, [](AffineMap map) -> Attribute {
++        return AffineMapAttr::get(map);
++      });
++  auto indexingMapsAttr = rewriter.getNamedAttr(
++      "indexing_maps", rewriter.getArrayAttr(indexingMapsAttrVal));
++  attributes.push_back(indexingMapsAttr);
++
+   LinalgOp namedOp = rewriter.replaceOpWithNewOp<NamedOpTy>(
+       op, ValueRange{op.getDpsInputs()[0], op.getDpsInputs()[1]},
+-      ValueRange{op.getDpsInits()[0]});
++      ValueRange{op.getDpsInits()[0]}, attributes);
++
+   return namedOp;
+ }
+ 
+@@ -226,15 +240,36 @@ static FailureOr<LinalgOp> specializeLinalgContractions(RewriterBase &rewriter,
+   if (llvm::is_contained({a, b, c}, IndexMatchResult::Mismatch))
+     return failure();
+ 
+-  if (c != IndexMatchResult::Match ||
+-      (a == IndexMatchResult::Transposed && b == IndexMatchResult::Transposed))
+-    return failure();
++  // Build indexing maps for the named op in its canonical dimension ordering
++  auto *ctx = genericOp.getContext();
++  unsigned numLoopDims = numOfBatchDims + 3;
++  unsigned mIdx = numOfBatchDims;
++  unsigned nIdx = mIdx + 1;
++  unsigned kIdx = mIdx + 2;
++
++  // TODO: add support for indexing_maps with broadcasts.
++  auto makeMap = [&](IndexMatchResult match, unsigned rowIdx, unsigned colIdx) {
++    SmallVector<unsigned> tensorDims;
++    for (unsigned i = 0; i < numOfBatchDims; ++i)
++      tensorDims.push_back(i);
++    if (match == IndexMatchResult::Transposed)
++      llvm::append_values(tensorDims, colIdx, rowIdx);
++    else
++      llvm::append_values(tensorDims, rowIdx, colIdx);
++    return AffineMap::getMultiDimMapWithTargets(numLoopDims, tensorDims, ctx);
++  };
++
++  auto mapA = makeMap(a, mIdx, kIdx);
++  auto mapB = makeMap(b, kIdx, nIdx);
++  auto mapC = makeMap(c, mIdx, nIdx);
++
++  SmallVector<AffineMap> namedOpMaps = {mapA, mapB, mapC};
+ 
+   /// Codegen the different matmul variants.
+   if (numOfBatchDims) {
+-    return replaceWithMatmulVariant<BatchMatmulOp>(rewriter, genericOp);
++    return replaceWithMatmulVariant<BatchMatmulOp>(rewriter, genericOp, namedOpMaps);
+   }
+-  return replaceWithMatmulVariant<MatmulOp>(rewriter, genericOp);
++  return replaceWithMatmulVariant<MatmulOp>(rewriter, genericOp, namedOpMaps);
+ }
+ 
+ /// Utility to specialize a `genericOp` with a convolution op of type `ConvOpTy`
+-- 
+2.34.1
+
