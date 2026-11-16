@@ -25,13 +25,13 @@ jobs:
           - {os: ubuntu-24.04-arm, pkg: python-bindings, python: cp312}
           - {os: ubuntu-24.04-arm, pkg: python-bindings, python: cp313}
           - {os: ubuntu-24.04-arm, pkg: python-bindings, python: cp314}
-          - {os: macos-14, pkg: tools, python: cp310}
-          - {os: macos-14, pkg: dev, python: cp310}
-          - {os: macos-14, pkg: python-bindings, python: cp310}
-          - {os: macos-14, pkg: python-bindings, python: cp311}
-          - {os: macos-14, pkg: python-bindings, python: cp312}
-          - {os: macos-14, pkg: python-bindings, python: cp313}
-          - {os: macos-14, pkg: python-bindings, python: cp314}
+          - {os: macos-15, pkg: tools, python: cp310}
+          - {os: macos-15, pkg: dev, python: cp310}
+          - {os: macos-15, pkg: python-bindings, python: cp310}
+          - {os: macos-15, pkg: python-bindings, python: cp311}
+          - {os: macos-15, pkg: python-bindings, python: cp312}
+          - {os: macos-15, pkg: python-bindings, python: cp313}
+          - {os: macos-15, pkg: python-bindings, python: cp314}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v6
